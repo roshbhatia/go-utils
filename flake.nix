@@ -58,16 +58,24 @@
           pkgs = nixpkgs.legacyPackages.${system};
         in
         {
-          test = pkgs.runCommand "go-utils-test" { nativeBuildInputs = [ pkgs.go ]; } ''
-            cp -R ${./.} source
-            chmod -R u+w source
-            cd source
-            export GOCACHE="$TMPDIR/go-cache"
-            export GOTOOLCHAIN=local
-            go vet ./...
-            go test -race ./...
-            touch "$out"
-          '';
+          test =
+            pkgs.runCommand "go-utils-test"
+              {
+                nativeBuildInputs = [
+                  pkgs.go
+                  pkgs.stdenv.cc
+                ];
+              }
+              ''
+                cp -R ${./.} source
+                chmod -R u+w source
+                cd source
+                export GOCACHE="$TMPDIR/go-cache"
+                export GOTOOLCHAIN=local
+                go vet ./...
+                go test -race ./...
+                touch "$out"
+              '';
         }
       );
 
@@ -77,7 +85,7 @@
           pkgs = nixpkgs.legacyPackages.${system};
         in
         {
-          default = pkgs.mkShellNoCC {
+          default = pkgs.mkShell {
             packages = [
               pkgs.go
               pkgs.gopls
