@@ -64,6 +64,8 @@ func Parse(src string) []File {
 	}
 	for _, ln := range strings.Split(src, "\n") {
 		switch {
+		case strings.HasPrefix(ln, "diff --git "):
+			closeFile()
 		case strings.HasPrefix(ln, "--- "):
 		case strings.HasPrefix(ln, "+++ "):
 			closeFile()
