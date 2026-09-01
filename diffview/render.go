@@ -46,6 +46,9 @@ type Options struct {
 	// several repositories reaches thousands of lines of body, which is more
 	// than a reader takes in at once.
 	Stat bool
+	// Summary keeps symbol and call-edge rows but omits hunk bodies. A caller
+	// can place this analysis above a patch rendered by another diff engine.
+	Summary bool
 }
 
 func Render(o Options) string {
@@ -198,6 +201,9 @@ func (o Options) emitFile(b *strings.Builder, f *File, conn, guide string, width
 		if g.item != nil {
 			b.WriteString(rail + symRow(g, body) + "\n")
 			r, w = deep, body-2
+		}
+		if o.Summary {
+			continue
 		}
 		for _, h := range g.hunks {
 			b.WriteString(r + hunkHead(name, h, w, g.item != nil) + "\n")

@@ -16,3 +16,22 @@ func TestRenderDoesNotRepeatFileNameInHunk(t *testing.T) {
 		t.Fatalf("hunk line missing\n%s", out)
 	}
 }
+
+func TestRenderSummaryKeepsSymbolsWithoutHunks(t *testing.T) {
+	t.Parallel()
+	files := Parse("diff --git a/main.go b/main.go\n--- a/main.go\n+++ b/main.go\n@@ -2 +2 @@ func run() {\n-old()\n+new()\n")
+	out := Render(Options{
+		Files: files,
+		Symbols: map[string][]Symbol{
+			"main.go": {{Kind: "function", Name: "run", From: 1, To: 3}},
+		},
+		Summary: true,
+		Width:   100,
+	})
+	if !strings.Contains(out, "function run") {
+		t.Fatalf("symbol missing\n%s", out)
+	}
+	if strings.Contains(out, "old()") || strings.Contains(out, "new()") {
+		t.Fatalf("summary contains hunk body\n%s", out)
+	}
+}
