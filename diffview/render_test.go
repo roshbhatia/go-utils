@@ -35,3 +35,15 @@ func TestRenderSummaryKeepsSymbolsWithoutHunks(t *testing.T) {
 		t.Fatalf("summary contains hunk body\n%s", out)
 	}
 }
+
+func TestRenderUnifiedUsesOneDiffColumn(t *testing.T) {
+	t.Parallel()
+	files := Parse("diff --git a/main.go b/main.go\n--- a/main.go\n+++ b/main.go\n@@ -1 +1 @@\n-old\n+new\n")
+	out := Render(Options{Files: files, Unified: true, Width: 120})
+	if strings.Contains(out, " │ ") {
+		t.Fatalf("unified render contains a column divider\n%s", out)
+	}
+	if !strings.Contains(out, "- old") || !strings.Contains(out, "+ new") {
+		t.Fatalf("unified render omitted diff markers\n%s", out)
+	}
+}

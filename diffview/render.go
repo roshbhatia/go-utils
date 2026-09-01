@@ -45,7 +45,8 @@ type Options struct {
 	// Stat draws the tree and the churn and stops there. A render spanning
 	// several repositories reaches thousands of lines of body, which is more
 	// than a reader takes in at once.
-	Stat bool
+	Stat    bool
+	Unified bool
 	// Summary keeps symbol and call-edge rows but omits hunk bodies. A caller
 	// can place this analysis above a patch rendered by another diff engine.
 	Summary bool
@@ -207,7 +208,7 @@ func (o Options) emitFile(b *strings.Builder, f *File, conn, guide string, width
 		}
 		for _, h := range g.hunks {
 			b.WriteString(r + hunkHead(name, h, w, g.item != nil) + "\n")
-			if half := (w - 3) / 2; half-numWidth-1 >= sbsMinText {
+			if half := (w - 3) / 2; !o.Unified && half-numWidth-1 >= sbsMinText {
 				for _, row := range sbsRows(h) {
 					b.WriteString(r + sbsLine(row, half) + "\n")
 				}
