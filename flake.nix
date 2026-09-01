@@ -58,24 +58,22 @@
           pkgs = nixpkgs.legacyPackages.${system};
         in
         {
-          test =
-            pkgs.runCommand "go-utils-test"
-              {
-                nativeBuildInputs = [
-                  pkgs.go
-                  pkgs.stdenv.cc
-                ];
-              }
-              ''
-                cp -R ${./.} source
-                chmod -R u+w source
-                cd source
-                export GOCACHE="$TMPDIR/go-cache"
-                export GOTOOLCHAIN=local
-                go vet ./...
-                go test -race ./...
-                touch "$out"
-              '';
+          test = pkgs.buildGoModule {
+            pname = "go-utils-test";
+            version = "0";
+            src = ./.;
+            vendorHash = "sha256-eW8AbEkASrKMBYnGNHkpdIvD8Djg9rsf/uQmTilAyfQ=";
+            doCheck = true;
+            checkPhase = ''
+              runHook preCheck
+              go vet ./...
+              go test -race ./...
+              runHook postCheck
+            '';
+            installPhase = ''
+              touch "$out"
+            '';
+          };
         }
       );
 
