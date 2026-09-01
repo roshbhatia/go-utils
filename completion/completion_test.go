@@ -7,7 +7,11 @@ import (
 
 func TestGenerate(t *testing.T) {
 	t.Parallel()
-	command := Command{Name: "sample", Flags: []Flag{{Name: "color", Value: true, Values: []string{"auto", "always", "never"}}}}
+	command := Command{
+		Name:        "sample",
+		Flags:       []Flag{{Name: "color", Value: true, Values: []string{"auto", "always", "never"}}},
+		Subcommands: []Command{{Name: "inspect", Description: "Inspect one record", Flags: []Flag{{Name: "json"}}}},
+	}
 	for _, shell := range []string{"bash", "zsh", "fish", "nu"} {
 		shell := shell
 		t.Run(shell, func(t *testing.T) {
@@ -16,7 +20,7 @@ func TestGenerate(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !strings.Contains(out, "sample") || !strings.Contains(out, "color") {
+			if !strings.Contains(out, "sample") || !strings.Contains(out, "color") || !strings.Contains(out, "inspect") {
 				t.Fatalf("completion lacks command data: %q", out)
 			}
 		})

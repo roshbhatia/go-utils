@@ -18,6 +18,7 @@ type Command struct {
 	Name        string
 	Description string
 	Flags       []Flag
+	Subcommands []Command
 }
 
 func Generate(shell string, command Command) (string, error) {
@@ -40,6 +41,9 @@ func Generate(shell string, command Command) (string, error) {
 
 func names(command Command) string {
 	out := []string{"completion", "bash", "zsh", "fish", "nu"}
+	for _, subcommand := range command.Subcommands {
+		out = append(out, subcommand.Name)
+	}
 	for _, flag := range command.Flags {
 		out = append(out, "--"+flag.Name)
 		if flag.Short != "" {
@@ -78,8 +82,27 @@ func fish(command Command) string {
 		"complete -c "+command.Name+" -n '__fish_use_subcommand' -a completion -d 'Generate shell completions'",
 		"complete -c "+command.Name+" -n '__fish_seen_subcommand_from completion' -a 'bash zsh fish nu'",
 	)
+	for _, subcommand := range command.Subcommands {
+		lines = append(lines, "complete -c "+command.Name+" -n '__fish_use_subcommand' -a "+subcommand.Name+" -d '"+escapeFish(subcommand.Description)+"'")
+		for _, flag := range subcommand.Flags {
+			line := "complete -c " + command.Name + " -n '__fish_seen_subcommand_from " + subcommand.Name + "' -l " + flag.Name
+			if flag.Short != "" {
+				line += " -s " + flag.Short
+			}
+			if flag.Value {
+				line += " -r"
+			}
+			if len(flag.Values) > 0 {
+				line += " -a '" + strings.Join(flag.Values, " ") + "'"
+			}
+			line += " -d '" + escapeFish(flag.Description) + "'"
+			lines = append(lines, line)
+		}
+	}
 	return strings.Join(lines, "\n")
 }
+
+func escapeFish(value string) string { return strings.ReplaceAll(value, "'", "\\'") }
 
 func zsh(command Command) string {
 	lines := []string{"#compdef " + command.Name, "_" + command.Name + "() {", "  _arguments \\"}
@@ -97,7 +120,11 @@ func zsh(command Command) string {
 		}
 		lines = append(lines, "    '"+short+"--"+flag.Name+"["+strings.ReplaceAll(flag.Description, "'", "")+"]"+value+"' \\")
 	}
-	lines = append(lines, "    '1:command:(completion)' \\", "    '2:shell:(bash zsh fish nu)'", "}", "compdef _"+command.Name+" "+command.Name)
+	subcommands := []string{"completion"}
+	for _, subcommand := range command.Subcommands {
+		subcommands = append(subcommands, subcommand.Name)
+	}
+	lines = append(lines, "    '1:command:("+strings.Join(subcommands, " ")+")' \\", "    '2:shell:(bash zsh fish nu)'", "}", "compdef _"+command.Name+" "+command.Name)
 	return strings.Join(lines, "\n")
 }
 
@@ -123,5 +150,19 @@ func nu(command Command) string {
 		"",
 		"def \"nu-complete "+command.Name+" shell\" [] { [bash zsh fish nu] }",
 	)
+	for _, subcommand := range command.Subcommands {
+		lines = append(lines, "", "export extern \""+command.Name+" "+subcommand.Name+"\" [")
+		for _, flag := range subcommand.Flags {
+			name := "  --" + flag.Name
+			if flag.Short != "" {
+				name += "(-" + flag.Short + ")"
+			}
+			if flag.Value {
+				name += ": string"
+			}
+			lines = append(lines, name+" # "+flag.Description)
+		}
+		lines = append(lines, "  ...args: string", "]")
+	}
 	return strings.Join(lines, "\n")
 }
