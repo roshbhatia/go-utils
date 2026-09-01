@@ -11,7 +11,14 @@ import (
 
 // An inherited GIT_DIR silently retargets a command that names its own
 // repository, so every helper here scrubs the three that do it.
-var inherited = []string{"GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"}
+var inherited = []string{
+	"GIT_DIR",
+	"GIT_WORK_TREE",
+	"GIT_INDEX_FILE",
+	"GIT_EXTERNAL_DIFF",
+	"GIT_DIFF_OPTS",
+	"GIT_DIFFTOOL_EXTCMD",
+}
 
 func CleanEnv() []string {
 	env := os.Environ()
