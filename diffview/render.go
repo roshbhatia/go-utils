@@ -237,8 +237,8 @@ func dirLine(n *treeNode, conn string, width int) string {
 
 // The header names the file and the line. It repeats the enclosing symbol only
 // when no symbol row sits above it, because the outline already said it there.
-func hunkHead(name string, h Hunk, width int, named bool) string {
-	at := fmt.Sprintf("%s:%d", name, h.NewAt)
+func hunkHead(_ string, h Hunk, width int, named bool) string {
+	at := fmt.Sprintf("line %d", h.NewAt)
 	label := at
 	if h.Sym != "" && !named {
 		label += " · " + h.Sym
