@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"time"
 	"unicode"
@@ -75,11 +76,29 @@ func resolvePath(options Options) (string, error) {
 			return filepath.Clean(override), nil
 		}
 	}
-	root, err := os.UserConfigDir()
+	root, err := configRoot()
 	if err != nil {
-		return "", fmt.Errorf("find user config directory: %w", err)
+		return "", err
 	}
 	return filepath.Join(root, options.Name, "config.yaml"), nil
+}
+
+func configRoot() (string, error) {
+	if root := strings.TrimSpace(os.Getenv("XDG_CONFIG_HOME")); filepath.IsAbs(root) {
+		return filepath.Clean(root), nil
+	}
+	if runtime.GOOS == "windows" {
+		root, err := os.UserConfigDir()
+		if err != nil {
+			return "", fmt.Errorf("find user config directory: %w", err)
+		}
+		return root, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("find user home directory: %w", err)
+	}
+	return filepath.Join(home, ".config"), nil
 }
 
 func applyEnvironment(target reflect.Value, prefix string) error {

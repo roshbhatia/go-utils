@@ -51,6 +51,32 @@ func TestLoadRejectsUnknownYAMLFields(t *testing.T) {
 	}
 }
 
+func TestPathUsesXDGConfigHome(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", root)
+
+	got, err := Path(Options{Name: "test-tool"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join(root, "test-tool", "config.yaml")
+	if got != want {
+		t.Fatalf("path = %q, want %q", got, want)
+	}
+}
+
+func TestPathIgnoresRelativeXDGConfigHome(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", "relative")
+
+	got, err := Path(Options{Name: "test-tool"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filepath.IsAbs(got) == false {
+		t.Fatalf("path = %q, want absolute fallback", got)
+	}
+}
+
 func TestSchemaDescribesConfig(t *testing.T) {
 	data, err := Schema[testConfig]("Test configuration")
 	if err != nil {
