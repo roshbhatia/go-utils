@@ -3,6 +3,7 @@
 Shared Go primitives for Roshan's terminal tools.
 
 - `agents`: reads the generated harness registry.
+- `config`: loads typed YAML, applies environment overrides, and emits JSON Schema.
 - `diffview`: renders multi-repository diffs as symbol and call trees.
 - `git`: runs Git with inherited repository state removed.
 - `paths`: reads generated XDG path manifests.

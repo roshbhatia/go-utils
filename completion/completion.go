@@ -1,6 +1,7 @@
 package completion
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -36,6 +37,56 @@ func Generate(shell string, command Command) (string, error) {
 		return zsh(command), nil
 	default:
 		return "", fmt.Errorf("unsupported completion shell %q", shell)
+	}
+}
+
+// Markdown renders command metadata for a README generated section.
+func Markdown(command Command) string {
+	var out strings.Builder
+	out.WriteString("### `" + command.Name + "`\n\n")
+	out.WriteString(command.Description + "\n")
+	writeFlags(&out, command.Flags)
+	for _, subcommand := range command.Subcommands {
+		out.WriteString("\n### `" + command.Name + " " + subcommand.Name + "`\n\n")
+		out.WriteString(subcommand.Description + "\n")
+		writeFlags(&out, subcommand.Flags)
+	}
+	return strings.TrimSpace(out.String()) + "\n"
+}
+
+// ReplaceSection updates one generated Markdown section.
+func ReplaceSection(document, name, generated string) (string, error) {
+	start := "<!-- BEGIN GENERATED:" + name + " -->"
+	end := "<!-- END GENERATED:" + name + " -->"
+	before, after, found := strings.Cut(document, start)
+	if !found {
+		return "", fmt.Errorf("missing %s marker", start)
+	}
+	_, tail, found := strings.Cut(after, end)
+	if !found {
+		return "", fmt.Errorf("missing %s marker", end)
+	}
+	if strings.Contains(tail, start) {
+		return "", errors.New("generated section markers are duplicated")
+	}
+	body := strings.TrimSpace(generated)
+	return strings.TrimRight(before, "\n") + "\n" + start + "\n\n" + body + "\n\n" + end + tail, nil
+}
+
+func writeFlags(out *strings.Builder, flags []Flag) {
+	if len(flags) == 0 {
+		return
+	}
+	out.WriteString("\n| Option | Description |\n| --- | --- |\n")
+	for _, flag := range flags {
+		name := "`--" + flag.Name + "`"
+		if flag.Short != "" {
+			name += ", `-" + flag.Short + "`"
+		}
+		if flag.Value {
+			name += " `<value>`"
+		}
+		out.WriteString("| " + name + " | " + strings.ReplaceAll(flag.Description, "|", "\\|") + " |\n")
 	}
 }
 

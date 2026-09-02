@@ -62,7 +62,7 @@
             pname = "go-utils-test";
             version = "0";
             src = ./.;
-            vendorHash = "sha256-eW8AbEkASrKMBYnGNHkpdIvD8Djg9rsf/uQmTilAyfQ=";
+            vendorHash = "sha256-CSP6mGPQQf8VCiHKPNdYMr/+HhUJjvO3eM6UE04OzwE=";
             doCheck = true;
             checkPhase = ''
               runHook preCheck

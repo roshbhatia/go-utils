@@ -26,3 +26,25 @@ func TestGenerate(t *testing.T) {
 		})
 	}
 }
+
+func TestMarkdownAndReplaceSection(t *testing.T) {
+	command := Command{
+		Name: "tool", Description: "Inspect work.",
+		Flags:       []Flag{{Name: "json", Description: "Print JSON"}},
+		Subcommands: []Command{{Name: "show", Description: "Show one item."}},
+	}
+	generated := Markdown(command)
+	for _, want := range []string{"### `tool`", "`--json`", "### `tool show`"} {
+		if !strings.Contains(generated, want) {
+			t.Fatalf("generated Markdown does not contain %q:\n%s", want, generated)
+		}
+	}
+	document := "before\n<!-- BEGIN GENERATED:cli -->\nold\n<!-- END GENERATED:cli -->\nafter\n"
+	got, err := ReplaceSection(document, "cli", generated)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(got, "\nold\n") || !strings.Contains(got, generated) {
+		t.Fatalf("replaced document:\n%s", got)
+	}
+}
