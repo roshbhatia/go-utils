@@ -43,15 +43,20 @@ func Generate(shell string, command Command) (string, error) {
 // Markdown renders command metadata for a README generated section.
 func Markdown(command Command) string {
 	var out strings.Builder
-	out.WriteString("### `" + command.Name + "`\n\n")
-	out.WriteString(command.Description + "\n")
-	writeFlags(&out, command.Flags)
-	for _, subcommand := range command.Subcommands {
-		out.WriteString("\n### `" + command.Name + " " + subcommand.Name + "`\n\n")
-		out.WriteString(subcommand.Description + "\n")
-		writeFlags(&out, subcommand.Flags)
-	}
+	writeMarkdown(&out, command.Name, command)
 	return strings.TrimSpace(out.String()) + "\n"
+}
+
+func writeMarkdown(out *strings.Builder, invocation string, command Command) {
+	if out.Len() > 0 {
+		out.WriteString("\n")
+	}
+	out.WriteString("### `" + invocation + "`\n\n")
+	out.WriteString(command.Description + "\n")
+	writeFlags(out, command.Flags)
+	for _, subcommand := range command.Subcommands {
+		writeMarkdown(out, invocation+" "+subcommand.Name, subcommand)
+	}
 }
 
 // ReplaceSection updates one generated Markdown section.
@@ -92,9 +97,9 @@ func writeFlags(out *strings.Builder, flags []Flag) {
 
 func names(command Command) string {
 	out := []string{"completion", "bash", "zsh", "fish", "nu"}
-	for _, subcommand := range command.Subcommands {
+	walkCommands(command.Subcommands, func(_ []string, subcommand Command) {
 		out = append(out, subcommand.Name)
-	}
+	})
 	for _, flag := range command.Flags {
 		out = append(out, "--"+flag.Name)
 		if flag.Short != "" {
@@ -103,6 +108,18 @@ func names(command Command) string {
 		out = append(out, flag.Values...)
 	}
 	return strings.Join(out, " ")
+}
+
+func walkCommands(commands []Command, visit func([]string, Command)) {
+	var walk func([]string, []Command)
+	walk = func(parent []string, children []Command) {
+		for _, command := range children {
+			path := append(append([]string{}, parent...), command.Name)
+			visit(path, command)
+			walk(path, command.Subcommands)
+		}
+	}
+	walk(nil, commands)
 }
 
 func bash(command Command) string {
@@ -133,10 +150,14 @@ func fish(command Command) string {
 		"complete -c "+command.Name+" -n '__fish_use_subcommand' -a completion -d 'Generate shell completions'",
 		"complete -c "+command.Name+" -n '__fish_seen_subcommand_from completion' -a 'bash zsh fish nu'",
 	)
-	for _, subcommand := range command.Subcommands {
-		lines = append(lines, "complete -c "+command.Name+" -n '__fish_use_subcommand' -a "+subcommand.Name+" -d '"+escapeFish(subcommand.Description)+"'")
+	walkCommands(command.Subcommands, func(path []string, subcommand Command) {
+		condition := "__fish_use_subcommand"
+		if len(path) > 1 {
+			condition = "__fish_seen_subcommand_from " + path[len(path)-2]
+		}
+		lines = append(lines, "complete -c "+command.Name+" -n '"+condition+"' -a "+subcommand.Name+" -d '"+escapeFish(subcommand.Description)+"'")
 		for _, flag := range subcommand.Flags {
-			line := "complete -c " + command.Name + " -n '__fish_seen_subcommand_from " + subcommand.Name + "' -l " + flag.Name
+			line := "complete -c " + command.Name + " -n '__fish_seen_subcommand_from " + path[len(path)-1] + "' -l " + flag.Name
 			if flag.Short != "" {
 				line += " -s " + flag.Short
 			}
@@ -149,7 +170,7 @@ func fish(command Command) string {
 			line += " -d '" + escapeFish(flag.Description) + "'"
 			lines = append(lines, line)
 		}
-	}
+	})
 	return strings.Join(lines, "\n")
 }
 
@@ -172,9 +193,9 @@ func zsh(command Command) string {
 		lines = append(lines, "    '"+short+"--"+flag.Name+"["+strings.ReplaceAll(flag.Description, "'", "")+"]"+value+"' \\")
 	}
 	subcommands := []string{"completion"}
-	for _, subcommand := range command.Subcommands {
+	walkCommands(command.Subcommands, func(_ []string, subcommand Command) {
 		subcommands = append(subcommands, subcommand.Name)
-	}
+	})
 	lines = append(lines, "    '1:command:("+strings.Join(subcommands, " ")+")' \\", "    '2:shell:(bash zsh fish nu)'", "}", "compdef _"+command.Name+" "+command.Name)
 	return strings.Join(lines, "\n")
 }
@@ -201,8 +222,8 @@ func nu(command Command) string {
 		"",
 		"def \"nu-complete "+command.Name+" shell\" [] { [bash zsh fish nu] }",
 	)
-	for _, subcommand := range command.Subcommands {
-		lines = append(lines, "", "export extern \""+command.Name+" "+subcommand.Name+"\" [")
+	walkCommands(command.Subcommands, func(path []string, subcommand Command) {
+		lines = append(lines, "", "export extern \""+command.Name+" "+strings.Join(path, " ")+"\" [")
 		for _, flag := range subcommand.Flags {
 			name := "  --" + flag.Name
 			if flag.Short != "" {
@@ -214,6 +235,6 @@ func nu(command Command) string {
 			lines = append(lines, name+" # "+flag.Description)
 		}
 		lines = append(lines, "  ...args: string", "]")
-	}
+	})
 	return strings.Join(lines, "\n")
 }
