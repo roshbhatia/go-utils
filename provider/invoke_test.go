@@ -63,6 +63,20 @@ func TestInvokeKillsTimedOutProvider(t *testing.T) {
 	}
 }
 
+func TestActionEnvironmentSatisfiesRequirements(t *testing.T) {
+	manifest := helperManifest()
+	manifest.Requires.Environment = []string{"PROVIDER_MODE"}
+	invocation, err := Invoke(context.Background(), manifest, Request{
+		RequestID: "request-4", Capability: "inspect", Input: json.RawMessage(`{"mode":"ok","value":"x"}`),
+	}, InvokeOptions{Environment: []string{"PATH=" + os.Getenv("PATH")}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !invocation.Validation.OK() {
+		t.Fatalf("validation = %+v", invocation.Validation)
+	}
+}
+
 func helperManifest() Manifest {
 	return Manifest{
 		Version: Version, Name: "helper", Description: "Test provider",

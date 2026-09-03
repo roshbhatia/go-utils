@@ -73,10 +73,6 @@ func Invoke(
 	if err != nil {
 		return invocation, err
 	}
-	invocation.Validation = options.Validator.Validate(manifest, options.WorkingDirectory)
-	if !invocation.Validation.OK() {
-		return invocation, fmt.Errorf("provider %q is not valid: %w", manifest.Name, invocation.Validation.Error())
-	}
 	templateData := options.TemplateData
 	if templateData == nil {
 		templateData, err = defaultTemplateData(request, options.WorkingDirectory)
@@ -87,6 +83,15 @@ func Invoke(
 	plan, err := manifest.Render(request.Capability, templateData)
 	if err != nil {
 		return invocation, err
+	}
+	effectiveEnvironment := mergedEnvironment(options.Environment, plan.Env)
+	validator := options.Validator
+	if validator.LookupEnv == nil {
+		validator.LookupEnv = environmentLookup(effectiveEnvironment)
+	}
+	invocation.Validation = validator.Validate(manifest, options.WorkingDirectory)
+	if !invocation.Validation.OK() {
+		return invocation, fmt.Errorf("provider %q is not valid: %w", manifest.Name, invocation.Validation.Error())
 	}
 	timeout := options.Timeout
 	if timeout <= 0 {
@@ -104,7 +109,7 @@ func Invoke(
 	}
 	command := exec.CommandContext(runContext, executable, plan.Argv[1:]...)
 	command.Dir = options.WorkingDirectory
-	command.Env = mergedEnvironment(options.Environment, plan.Env)
+	command.Env = effectiveEnvironment
 	stdin, err := command.StdinPipe()
 	if err != nil {
 		return invocation, fmt.Errorf("open provider stdin: %w", err)
@@ -152,6 +157,9 @@ func Invoke(
 	invocation.Duration = time.Since(started)
 	if errors.Is(runContext.Err(), context.DeadlineExceeded) {
 		return invocation, fmt.Errorf("provider %q timed out after %s: %w", manifest.Name, timeout, runContext.Err())
+	}
+	if err := ctx.Err(); err != nil {
+		return invocation, fmt.Errorf("provider %q was cancelled: %w", manifest.Name, err)
 	}
 	if parseError != nil {
 		return invocation, fmt.Errorf("read provider %q output: %w", manifest.Name, parseError)
@@ -280,6 +288,19 @@ func mergedEnvironment(base []string, overrides map[string]string) []string {
 		result = append(result, key+"="+values[key])
 	}
 	return result
+}
+
+func environmentLookup(environment []string) func(string) (string, bool) {
+	values := make(map[string]string, len(environment))
+	for _, value := range environment {
+		if index := bytes.IndexByte([]byte(value), '='); index >= 0 {
+			values[value[:index]] = value[index+1:]
+		}
+	}
+	return func(name string) (string, bool) {
+		value, ok := values[name]
+		return value, ok
+	}
 }
 
 func stderrSuffix(stderr string) string {
