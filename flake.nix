@@ -63,11 +63,14 @@
             version = "0";
             src = ./.;
             vendorHash = "sha256-CSP6mGPQQf8VCiHKPNdYMr/+HhUJjvO3eM6UE04OzwE=";
+            nativeCheckInputs = [ pkgs.cue ];
             doCheck = true;
             checkPhase = ''
               runHook preCheck
               go vet ./...
               go test -race ./...
+              go run ./internal/cmd/provider-schema --check
+              cue vet schema/provider.cue
               runHook postCheck
             '';
             installPhase = ''
@@ -88,6 +91,7 @@
               pkgs.go
               pkgs.gopls
               pkgs.gotools
+              pkgs.cue
               pkgs.ripgrep
             ];
             shellHook = ''

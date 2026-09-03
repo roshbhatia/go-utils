@@ -7,6 +7,7 @@ Shared Go primitives for Roshan's terminal tools.
 - `diffview`: renders multi-repository diffs as symbol and call trees.
 - `git`: runs Git with inherited repository state removed.
 - `paths`: reads generated XDG path manifests.
+- `provider`: discovers and invokes shell-independent external providers.
 - `ui`: defines terminal colors, keys, layout, status, and themes.
 - `workspace`: finds the active workspace and its repositories.
 
@@ -19,6 +20,11 @@ palette := ui.DefaultPalette()
 action, ok := ui.ActionFor(ui.Key{Name: "j"})
 frame := ui.ResolveLayout(160, 48, true)
 ```
+
+Provider manifests use the neutral `provider/v1` contract. An action renders
+each argument and environment value as an independent Go template. The runtime
+then executes the declared argv directly and exchanges bounded JSONL request,
+event, and result frames over standard input and output.
 
 ## Development
 
