@@ -2,29 +2,71 @@
 {{with .Values}}  printf '%s\n'{{range .}} {{quoteShell .}}{{end}}
 {{end}}{{with .Command}}  {{bashCommand .}} 2>/dev/null || true
 {{end}}}
-{{end}}_{{.Name}}_complete() {
+{{end}}__{{.Name}}_completion_filter() {
+  local prefix="$1"
+  local prepend="${2-}"
+  local candidate
+  local existing
+  local duplicate
+  COMPREPLY=()
+  while IFS= read -r candidate || [[ -n "$candidate" ]]; do
+    [[ "$candidate" == "$prefix"* ]] || continue
+    candidate="$prepend$candidate"
+    duplicate=0
+    for existing in "${COMPREPLY[@]}"; do
+      if [[ "$existing" == "$candidate" ]]; then
+        duplicate=1
+        break
+      fi
+    done
+    (( duplicate )) || COMPREPLY+=("$candidate")
+  done
+}
+
+_{{.Name}}_complete() {
   local current="${COMP_WORDS[COMP_CWORD]}"
   local previous=""
   local context=""
   local word
   local index
+  local consume_value=0
+  local options_done=0
   if (( COMP_CWORD > 0 )); then
     previous="${COMP_WORDS[COMP_CWORD-1]}"
   fi
   for ((index=1; index<COMP_CWORD; index++)); do
     word="${COMP_WORDS[index]}"
+    if (( consume_value )); then
+      consume_value=0
+      continue
+    fi
+    if (( options_done )); then
+      continue
+    fi
+    if [[ "$word" == '--' ]]; then
+      options_done=1
+      continue
+    fi
+    case "$context:$word" in
+{{range .ValueFlags}}{{$flag := .}}{{range .Names}}      '{{$flag.Context}}:{{.}}') consume_value=1; continue ;;
+      '{{$flag.Context}}:{{.}}='*) continue ;;
+{{end}}{{end}}    esac
     case "$context:$word" in
 {{range .Transitions}}      '{{.From}}:{{.Word}}') context='{{.To}}' ;;
 {{end}}    esac
   done
   case "$context:$previous" in
-{{range .Values}}{{$valueSet := .}}{{range .Names}}    '{{$valueSet.Context}}:{{.}}') COMPREPLY=($(compgen -W "$({{setFunction $.Name $valueSet.Set}})" -- "$current")); return ;;
+{{range .Values}}{{$valueSet := .}}{{range .Names}}    '{{$valueSet.Context}}:{{.}}') __{{$.Name}}_completion_filter "$current" < <({{setFunction $.Name $valueSet.Set}}); return ;;
+{{end}}{{end}}  esac
+  case "$context:$current" in
+{{range .Values}}{{$valueSet := .}}{{range .Names}}    '{{$valueSet.Context}}:{{.}}='*) __{{$.Name}}_completion_filter "${current#*=}" "{{.}}=" < <({{setFunction $.Name $valueSet.Set}}); return ;;
 {{end}}{{end}}  esac
   case "$context" in
 {{range .Commands}}    '{{.Context}}')
-      local candidates='{{join .Candidates " "}}'
-{{with .ArgumentSet}}      candidates="$candidates $({{setFunction $.Name .}})"
-{{end}}      COMPREPLY=($(compgen -W "$candidates" -- "$current"))
+      __{{$.Name}}_completion_filter "$current" < <(
+{{with .Candidates}}        printf '%s\n'{{range .}} {{quoteShell .}}{{end}}
+{{end}}{{with .ArgumentSet}}        {{setFunction $.Name .}}
+{{end}}      )
       ;;
 {{end}}  esac
 }

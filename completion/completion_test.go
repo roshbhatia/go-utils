@@ -15,8 +15,8 @@ func TestGenerate(t *testing.T) {
 		"bash": {
 			"':inspect') context='inspect'",
 			"'inspect:raw') context='inspect raw'",
-			"local candidates='completion inspect --color -c'",
-			"local candidates='raw --json'",
+			"printf '%s\\n' 'completion' 'inspect' '--color' '-c'",
+			"printf '%s\\n' 'raw' '--json'",
 			"__sample_completion_values_0()",
 			"'sample' 'values' '--kind' 'color'",
 		},
@@ -110,7 +110,7 @@ func TestDynamicCompletionCanReceiveTheCurrentCommandLine(t *testing.T) {
 		"bash": `"${COMP_LINE:0:COMP_POINT}"`,
 		"fish": `(commandline -cp)`,
 		"nu":   `($context | default "")`,
-		"zsh":  `"$BUFFER"`,
+		"zsh":  `"${BUFFER[1,CURSOR]}"`,
 	}
 	for shell, want := range wants {
 		generated, err := Generate(shell, command)
@@ -161,10 +161,7 @@ func TestGeneratedCompletionsParse(t *testing.T) {
 		shell := shell
 		test := test
 		t.Run(shell, func(t *testing.T) {
-			executable, err := exec.LookPath(shell)
-			if err != nil {
-				t.Skipf("%s is unavailable", shell)
-			}
+			executable := completionShell(t, shell)
 			generated, err := Generate(shell, nestedCommand())
 			if err != nil {
 				t.Fatal(err)
@@ -227,10 +224,7 @@ func TestGeneratedDynamicCompletionHelpers(t *testing.T) {
 	}
 	for shell, test := range tests {
 		t.Run(shell, func(t *testing.T) {
-			executable, err := exec.LookPath(shell)
-			if err != nil {
-				t.Skipf("%s is unavailable", shell)
-			}
+			executable := completionShell(t, shell)
 			generated, err := Generate(shell, command)
 			if err != nil {
 				t.Fatal(err)
@@ -250,6 +244,227 @@ func TestGeneratedDynamicCompletionHelpers(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBashTreatsDynamicCandidatesAsData(t *testing.T) {
+	directory := t.TempDir()
+	sideEffect := filepath.Join(directory, "unexpected-side-effect")
+	provider := filepath.Join(directory, "provider-values")
+	dynamic := []string{
+		"dynamic value",
+		"dynamic'quote",
+		"$HOME",
+		"$(touch " + sideEffect + ")",
+	}
+	providerSource := "#!/bin/sh\nprintf '%s\\n'"
+	for _, candidate := range dynamic {
+		providerSource += " " + quoteShell(candidate)
+	}
+	providerSource += "\n"
+	if err := os.WriteFile(provider, []byte(providerSource), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	command := Command{
+		Name: "fixture",
+		Flags: []Flag{{
+			Name:              "provider",
+			Value:             true,
+			Values:            []string{"static value", "static'quote"},
+			CompletionCommand: []string{provider},
+		}},
+	}
+	got := runBashCompletion(t, command, "fixture --provider ", "fixture", "--provider", "")
+	want := append([]string{"static value", "static'quote"}, dynamic...)
+	if strings.Join(got, "\x00") != strings.Join(want, "\x00") {
+		t.Fatalf("bash completion changed candidate records:\n got: %#v\nwant: %#v", got, want)
+	}
+	equals := runBashCompletion(t, command, "fixture --provider=dynamic", "fixture", "--provider=dynamic")
+	equalsWant := []string{"--provider=dynamic value", "--provider=dynamic'quote"}
+	if strings.Join(equals, "\x00") != strings.Join(equalsWant, "\x00") {
+		t.Fatalf("bash --flag=value completion changed candidate records: got %#v, want %#v", equals, equalsWant)
+	}
+	if _, err := os.Stat(sideEffect); !os.IsNotExist(err) {
+		t.Fatalf("bash evaluated candidate shell syntax; side effect stat error: %v", err)
+	}
+}
+
+func TestBashDeduplicatesCombinedRootCandidates(t *testing.T) {
+	directory := t.TempDir()
+	provider := filepath.Join(directory, "provider-values")
+	if err := os.WriteFile(provider, []byte("#!/bin/sh\nprintf '%s\\n' nest 'root dynamic'\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	command := Command{
+		Name:              "fixture",
+		CompletionCommand: []string{provider},
+		Subcommands:       []Command{{Name: "nest"}},
+	}
+	got := runBashCompletion(t, command, "fixture ", "fixture", "")
+	want := []string{"completion", "nest", "root dynamic"}
+	if strings.Join(got, "\x00") != strings.Join(want, "\x00") {
+		t.Fatalf("combined root candidates are not stable and unique: got %#v, want %#v", got, want)
+	}
+}
+
+func TestNestedContextSkipsFlagValues(t *testing.T) {
+	command := Command{
+		Name:        "fixture",
+		Flags:       []Flag{{Name: "target", Short: "t", Value: true, Values: []string{"nest"}}},
+		Subcommands: []Command{{Name: "nest", Subcommands: []Command{{Name: "leaf"}}}},
+	}
+
+	t.Run("bash", func(t *testing.T) {
+		root := runBashCompletion(t, command, "fixture --target nest ", "fixture", "--target", "nest", "")
+		assertContainsCandidate(t, root, "completion")
+		assertMissingCandidate(t, root, "leaf")
+		nested := runBashCompletion(t, command, "fixture --target=value nest ", "fixture", "--target=value", "nest", "")
+		assertContainsCandidate(t, nested, "leaf")
+	})
+
+	t.Run("fish", func(t *testing.T) {
+		executable := completionShell(t, "fish")
+		path := writeCompletion(t, "fish", command)
+		root := runLines(t, executable, []string{"-c", `source $argv[1]; complete -C $argv[2]`, path, "fixture --target nest "})
+		assertContainsCandidate(t, root, "completion")
+		assertMissingCandidate(t, root, "leaf")
+		nested := runLines(t, executable, []string{"-c", `source $argv[1]; complete -C $argv[2]`, path, "fixture --target=value nest "})
+		assertContainsCandidate(t, nested, "leaf")
+	})
+
+	t.Run("zsh", func(t *testing.T) {
+		executable := completionShell(t, "zsh")
+		path := writeCompletion(t, "zsh", command)
+		script := `compdef() { :; }; source "$1"; _arguments() { print -rC1 -- "$@"; }; words=(fixture --target nest ""); CURRENT=4; _fixture`
+		root := runLines(t, executable, []string{"-fc", script, "completion-test", path})
+		if !containsText(root, "1:command:(completion nest)") || containsText(root, "2:command:(leaf)") {
+			t.Fatalf("zsh selected the wrong command context: %#v", root)
+		}
+		script = `compdef() { :; }; source "$1"; _arguments() { print -rC1 -- "$@"; }; words=(fixture --target=value nest ""); CURRENT=4; _fixture`
+		nested := runLines(t, executable, []string{"-fc", script, "completion-test", path})
+		if !containsText(nested, "2:command:(leaf)") {
+			t.Fatalf("zsh did not enter the nested context after --flag=value: %#v", nested)
+		}
+	})
+}
+
+func TestZshPassesOnlyTheBufferPrefix(t *testing.T) {
+	command := Command{
+		Name: "fixture",
+		Flags: []Flag{{
+			Name:              "context",
+			Value:             true,
+			CompletionCommand: []string{"/usr/bin/printf", "%s\\n", ContextPlaceholder},
+		}},
+	}
+	executable := completionShell(t, "zsh")
+	path := writeCompletion(t, "zsh", command)
+	script := `compdef() { :; }; source "$1"; _describe() { print -rC1 -- "${values[@]}"; }; BUFFER="fixture --context before AFTER"; CURSOR=24; __fixture_completion_values_0`
+	got := runLines(t, executable, []string{"-fc", script, "completion-test", path})
+	if strings.Join(got, "\n") != "fixture --context before" {
+		t.Fatalf("zsh passed text after the cursor: %#v", got)
+	}
+}
+
+func TestFishSuppressesFilesForOwnedCandidates(t *testing.T) {
+	command := Command{
+		Name:              "fixture",
+		CompletionCommand: []string{"/usr/bin/printf", "%s\\n", "dynamic value"},
+	}
+	executable := completionShell(t, "fish")
+	path := writeCompletion(t, "fish", command)
+	directory := t.TempDir()
+	file := filepath.Join(directory, "unrelated-file")
+	if err := os.WriteFile(file, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got := runLinesIn(t, directory, executable, []string{"-c", `source $argv[1]; complete -C "fixture "`, path})
+	assertContainsCandidate(t, got, "dynamic value")
+	assertMissingCandidate(t, got, "unrelated-file")
+}
+
+func completionShell(t *testing.T, shell string) string {
+	t.Helper()
+	executable, err := exec.LookPath(shell)
+	if err == nil {
+		return executable
+	}
+	if os.Getenv("GO_UTILS_REQUIRE_COMPLETION_SHELLS") == "1" {
+		t.Fatalf("required completion shell %s is unavailable: %v", shell, err)
+	}
+	t.Skipf("%s is unavailable", shell)
+	return ""
+}
+
+func writeCompletion(t *testing.T, shell string, command Command) string {
+	t.Helper()
+	generated, err := Generate(shell, command)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "completion."+shell)
+	if err := os.WriteFile(path, []byte(generated), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func runBashCompletion(t *testing.T, command Command, line string, words ...string) []string {
+	t.Helper()
+	executable := completionShell(t, "bash")
+	path := writeCompletion(t, "bash", command)
+	arguments := []string{"-c", `complete() { :; }; source "$1"; line="$2"; shift 2; COMP_LINE="$line"; COMP_POINT=${#COMP_LINE}; COMP_WORDS=("$@"); COMP_CWORD=$((${#COMP_WORDS[@]} - 1)); _fixture_complete; printf '%s\0' "${COMPREPLY[@]}"`, "completion-test", path, line}
+	arguments = append(arguments, words...)
+	output, err := exec.Command(executable, arguments...).CombinedOutput()
+	if err != nil {
+		t.Fatalf("run bash completion: %v\n%s", err, output)
+	}
+	if len(output) == 0 {
+		return nil
+	}
+	return strings.Split(strings.TrimSuffix(string(output), "\x00"), "\x00")
+}
+
+func runLines(t *testing.T, executable string, arguments []string) []string {
+	t.Helper()
+	return runLinesIn(t, "", executable, arguments)
+}
+
+func runLinesIn(t *testing.T, directory, executable string, arguments []string) []string {
+	t.Helper()
+	command := exec.Command(executable, arguments...)
+	command.Dir = directory
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("run %s: %v\n%s", executable, err, output)
+	}
+	trimmed := strings.TrimSpace(string(output))
+	if trimmed == "" {
+		return nil
+	}
+	return strings.Split(trimmed, "\n")
+}
+
+func assertContainsCandidate(t *testing.T, candidates []string, want string) {
+	t.Helper()
+	if !containsText(candidates, want) {
+		t.Fatalf("completion lacks %q: %#v", want, candidates)
+	}
+}
+
+func assertMissingCandidate(t *testing.T, candidates []string, unwanted string) {
+	t.Helper()
+	if containsText(candidates, unwanted) {
+		t.Fatalf("completion contains %q: %#v", unwanted, candidates)
+	}
+}
+
+func containsText(lines []string, text string) bool {
+	for _, line := range lines {
+		if strings.Contains(line, text) {
+			return true
+		}
+	}
+	return false
 }
 
 func TestMarkdownAndReplaceSection(t *testing.T) {

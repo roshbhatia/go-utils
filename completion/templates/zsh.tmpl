@@ -9,7 +9,24 @@
 _{{.Name}}() {
   local context=''
   local word
+  local consume_value=0
+  local options_done=0
   for word in ${words[2,$((CURRENT - 1))]}; do
+    if (( consume_value )); then
+      consume_value=0
+      continue
+    fi
+    if (( options_done )); then
+      continue
+    fi
+    if [[ "$word" == '--' ]]; then
+      options_done=1
+      continue
+    fi
+    case "$context:$word" in
+{{range .ValueFlags}}{{$flag := .}}{{range .Names}}      '{{$flag.Context}}:{{.}}') consume_value=1; continue ;;
+      '{{$flag.Context}}:{{.}}='*) continue ;;
+{{end}}{{end}}    esac
     case "$context:$word" in
 {{range .Transitions}}      '{{.From}}:{{.Word}}') context='{{.To}}' ;;
 {{end}}    esac

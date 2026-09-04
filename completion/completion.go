@@ -62,6 +62,11 @@ type flagValues struct {
 	Set     string
 }
 
+type valueFlag struct {
+	Context string
+	Names   []string
+}
+
 type completionSet struct {
 	Command []string
 	ID      string
@@ -75,6 +80,7 @@ type completionTemplateData struct {
 	Sets        []completionSet
 	Transitions []commandTransition
 	Values      []flagValues
+	ValueFlags  []valueFlag
 }
 
 type markdownSection struct {
@@ -249,7 +255,7 @@ func fishCommand(command []string) string {
 }
 
 func zshCommand(command []string) string {
-	return commandWithContext(command, `"$BUFFER"`)
+	return commandWithContext(command, `"${BUFFER[1,CURSOR]}"`)
 }
 
 func nuCommand(command []string) string {
@@ -371,6 +377,13 @@ func appendFlagValues(data *completionTemplateData, context string, flags []Flag
 	for _, flag := range flags {
 		set := appendCompletionSet(data, flag.Values, flag.CompletionCommand)
 		templateFlags = append(templateFlags, flagTemplateData{Flag: flag, ValueSet: set})
+		if flag.Value {
+			names := []string{"--" + flag.Name}
+			if flag.Short != "" {
+				names = append(names, "-"+flag.Short)
+			}
+			data.ValueFlags = append(data.ValueFlags, valueFlag{Context: context, Names: names})
+		}
 		if set == "" {
 			continue
 		}

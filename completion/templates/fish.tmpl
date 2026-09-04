@@ -7,7 +7,27 @@
 function __{{.Name}}_completion_context
   set -l context ''
   set -l words (commandline -opc)
+  set -l consume_value 0
+  set -l options_done 0
   for word in $words[2..-1]
+    if test $consume_value -eq 1
+      set consume_value 0
+      continue
+    end
+    if test $options_done -eq 1
+      continue
+    end
+    if test "$word" = '--'
+      set options_done 1
+      continue
+    end
+    switch "$context:$word"
+{{range .ValueFlags}}{{$flag := .}}      case{{range .Names}} '{{$flag.Context}}:{{.}}'{{end}}
+        set consume_value 1
+        continue
+{{range .Names}}      case '{{$flag.Context}}:{{.}}=*'
+        continue
+{{end}}{{end}}    end
     switch "$context:$word"
 {{range .Transitions}}      case '{{.From}}:{{.Word}}'
         set context '{{.To}}'
@@ -16,8 +36,8 @@ function __{{.Name}}_completion_context
   echo $context
 end
 {{range .Commands}}{{$command := . -}}
-{{range $command.Flags}}complete -c {{$.Name}} -n 'test (__{{$.Name}}_completion_context) = "{{$command.Context}}"' -l {{.Name}}{{with .Short}} -s {{.}}{{end}}{{if .Value}} -r{{end}}{{with .ValueSet}} -a '({{setFunction $.Name .}})'{{end}} -d '{{escapeFish .Description}}'
-{{end}}{{range $command.Children}}complete -c {{$.Name}} -n 'test (__{{$.Name}}_completion_context) = "{{$command.Context}}"' -a {{.Name}} -d '{{escapeFish (commandSynopsis .)}}'
-{{end}}{{if eq $command.Context "completion"}}complete -c {{$.Name}} -n 'test (__{{$.Name}}_completion_context) = "completion"' -a 'bash zsh fish nu'
-{{end}}{{with $command.ArgumentSet}}complete -c {{$.Name}} -n 'test (__{{$.Name}}_completion_context) = "{{$command.Context}}"' -a '({{setFunction $.Name .}})'
+{{range $command.Flags}}complete -c {{$.Name}} -n 'test (__{{$.Name}}_completion_context) = "{{$command.Context}}"'{{with .ValueSet}} -f{{end}} -l {{.Name}}{{with .Short}} -s {{.}}{{end}}{{if .Value}} -r{{end}}{{with .ValueSet}} -a '({{setFunction $.Name .}})'{{end}} -d '{{escapeFish .Description}}'
+{{end}}{{range $command.Children}}complete -c {{$.Name}} -f -n 'test (__{{$.Name}}_completion_context) = "{{$command.Context}}"' -a {{.Name}} -d '{{escapeFish (commandSynopsis .)}}'
+{{end}}{{if eq $command.Context "completion"}}complete -c {{$.Name}} -f -n 'test (__{{$.Name}}_completion_context) = "completion"' -a 'bash zsh fish nu'
+{{end}}{{with $command.ArgumentSet}}complete -c {{$.Name}} -f -n 'test (__{{$.Name}}_completion_context) = "{{$command.Context}}"' -a '({{setFunction $.Name .}})'
 {{end}}{{end}}{{end}}

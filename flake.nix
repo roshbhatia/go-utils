@@ -64,10 +64,17 @@
             version = "0";
             src = ./.;
             vendorHash = "sha256-CSP6mGPQQf8VCiHKPNdYMr/+HhUJjvO3eM6UE04OzwE=";
-            nativeCheckInputs = [ pkgs.cue ];
+            nativeCheckInputs = [
+              pkgs.bashInteractive
+              pkgs.cue
+              pkgs.fish
+              pkgs.nushell
+              pkgs.zsh
+            ];
             doCheck = true;
             checkPhase = ''
               runHook preCheck
+              export GO_UTILS_REQUIRE_COMPLETION_SHELLS=1
               go vet ./...
               go test -race ./...
               go run ./internal/cmd/provider-schema --check
@@ -93,8 +100,12 @@
               pkgs.gopls
               pkgs.gotools
               pkgs.go-tools
+              pkgs.bashInteractive
               pkgs.cue
+              pkgs.fish
+              pkgs.nushell
               pkgs.ripgrep
+              pkgs.zsh
             ];
             shellHook = ''
               export GOTOOLCHAIN=local
