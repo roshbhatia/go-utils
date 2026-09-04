@@ -1,0 +1,20 @@
+{{define "zsh"}}#compdef {{.Name}}
+_{{.Name}}() {
+  local context=''
+  local word
+  for word in ${words[2,$((CURRENT - 1))]}; do
+    case "$context:$word" in
+{{range .Transitions}}      '{{.From}}:{{.Word}}') context='{{.To}}' ;;
+{{end}}    esac
+  done
+  case "$context" in
+{{range .Commands}}    '{{.Context}}')
+      _arguments \
+{{range .Flags}}        '{{if .Short}}(-{{.Short}}){{end}}--{{.Name}}[{{zshText .Description}}]{{if .Value}}:value:{{with .Values}}({{join . " "}}){{end}}{{end}}' \
+{{end}}{{if eq .Context "completion"}}        '{{.Position}}:shell:(bash zsh fish nu)'
+{{else if .Subcommands}}        '{{.Position}}:command:({{join .Subcommands " "}})'
+{{else}}        '*:argument:'
+{{end}}      ;;
+{{end}}  esac
+}
+compdef _{{.Name}} {{.Name}}{{end}}

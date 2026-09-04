@@ -1,0 +1,23 @@
+{{define "bash"}}_{{.Name}}_complete() {
+  local current="${COMP_WORDS[COMP_CWORD]}"
+  local previous=""
+  local context=""
+  local word
+  local index
+  if (( COMP_CWORD > 0 )); then
+    previous="${COMP_WORDS[COMP_CWORD-1]}"
+  fi
+  for ((index=1; index<COMP_CWORD; index++)); do
+    word="${COMP_WORDS[index]}"
+    case "$context:$word" in
+{{range .Transitions}}      '{{.From}}:{{.Word}}') context='{{.To}}' ;;
+{{end}}    esac
+  done
+  case "$context:$previous" in
+{{range .Values}}{{$valueSet := .}}{{range .Names}}    '{{$valueSet.Context}}:{{.}}') COMPREPLY=($(compgen -W '{{join $valueSet.Values " "}}' -- "$current")); return ;;
+{{end}}{{end}}  esac
+  case "$context" in
+{{range .Commands}}    '{{.Context}}') COMPREPLY=($(compgen -W '{{join .Candidates " "}}' -- "$current")) ;;
+{{end}}  esac
+}
+complete -F _{{.Name}}_complete {{.Name}}{{end}}

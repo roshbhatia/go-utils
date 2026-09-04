@@ -1,0 +1,9 @@
+{{define "markdown"}}{{range $index, $section := .}}{{if $index}}
+{{end}}### `{{$section.Invocation}}`
+
+{{$section.Description}}{{if $section.Flags}}
+
+| Option | Description |
+| --- | --- |
+{{range $section.Flags}}| {{markdownFlagName .}} | {{markdownText .Description}} |
+{{end}}{{end}}{{end}}{{end}}

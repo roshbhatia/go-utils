@@ -20,7 +20,11 @@ type testConfig struct {
 func TestLoadPrecedence(t *testing.T) {
 	directory := t.TempDir()
 	path := filepath.Join(directory, "config.yaml")
-	if err := os.WriteFile(path, []byte("color: always\nenabled: true\nproviders:\n  diff: [git]\n"), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte(`color: always
+enabled: true
+providers:
+  diff: [git]
+`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("TEST_TOOL_COLOR", "never")

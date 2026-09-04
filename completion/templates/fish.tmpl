@@ -1,0 +1,17 @@
+{{define "fish"}}complete -c {{.Name}} -e
+function __{{.Name}}_completion_context
+  set -l context ''
+  set -l words (commandline -opc)
+  for word in $words[2..-1]
+    switch "$context:$word"
+{{range .Transitions}}      case '{{.From}}:{{.Word}}'
+        set context '{{.To}}'
+{{end}}    end
+  end
+  echo $context
+end
+{{range .Commands}}{{$command := . -}}
+{{range $command.Flags}}complete -c {{$.Name}} -n 'test (__{{$.Name}}_completion_context) = "{{$command.Context}}"' -l {{.Name}}{{with .Short}} -s {{.}}{{end}}{{if .Value}} -r{{end}}{{with .Values}} -a '{{join . " "}}'{{end}} -d '{{escapeFish .Description}}'
+{{end}}{{range $command.Children}}complete -c {{$.Name}} -n 'test (__{{$.Name}}_completion_context) = "{{$command.Context}}"' -a {{.Name}} -d '{{escapeFish .Description}}'
+{{end}}{{if eq $command.Context "completion"}}complete -c {{$.Name}} -n 'test (__{{$.Name}}_completion_context) = "completion"' -a 'bash zsh fish nu'
+{{end}}{{end}}{{end}}

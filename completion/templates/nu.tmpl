@@ -1,0 +1,16 @@
+{{define "nu"}}export extern "{{.Name}}" [
+{{range .Flags}}  --{{.Name}}{{with .Short}}(-{{.}}){{end}}{{if .Value}}: string{{end}} # {{.Description}}
+{{end}}  ...args: string
+]
+
+export extern "{{.Name}} completion" [
+  shell: string@"nu-complete {{.Name}} shell"
+]
+
+def "nu-complete {{.Name}} shell" [] { [bash zsh fish nu] }
+{{range .Commands}}{{if and .Invocation (ne .Context "completion")}}
+export extern "{{$.Name}} {{.Invocation}}" [
+{{range .Flags}}  --{{.Name}}{{with .Short}}(-{{.}}){{end}}{{if .Value}}: string{{end}} # {{.Description}}
+{{end}}  ...args: string
+]
+{{end}}{{end}}{{end}}

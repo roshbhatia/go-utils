@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"go.yaml.in/yaml/v3"
 )
 
 func validManifest() Manifest {
@@ -32,7 +34,15 @@ func TestDecodeRejectsUnknownFields(t *testing.T) {
 		extension string
 		source    string
 	}{
-		{"yaml", ".yaml", "version: provider/v1\nname: example\ndescription: Example\ncommand: [echo]\nactions:\n  inspect:\n    description: Inspect\n    typo: true\n"},
+		{"yaml", ".yaml", `version: provider/v1
+name: example
+description: Example
+command: [echo]
+actions:
+  inspect:
+    description: Inspect
+    typo: true
+`},
 		{"json", ".json", `{"version":"provider/v1","name":"example","description":"Example","command":["echo"],"actions":{"inspect":{"description":"Inspect","typo":true}}}`},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -47,8 +57,13 @@ func TestDiscoverSortsAndRejectsDuplicateNames(t *testing.T) {
 	directory := t.TempDir()
 	writeManifest := func(name, providerName string) {
 		t.Helper()
-		source := "version: provider/v1\nname: " + providerName + "\ndescription: Example\ncommand: [echo]\nactions:\n  inspect:\n    description: Inspect\n"
-		if err := os.WriteFile(filepath.Join(directory, name), []byte(source), 0o600); err != nil {
+		manifest := validManifest()
+		manifest.Name = providerName
+		source, err := yaml.Marshal(manifest)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(directory, name), source, 0o600); err != nil {
 			t.Fatal(err)
 		}
 	}

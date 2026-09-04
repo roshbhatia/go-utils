@@ -1,10 +1,13 @@
 package completion
 
 import (
+	"bytes"
+	"embed"
 	"errors"
 	"fmt"
 	"sort"
 	"strings"
+	"text/template"
 )
 
 type Flag struct {
@@ -21,6 +24,52 @@ type Command struct {
 	Flags       []Flag
 	Subcommands []Command
 }
+
+type commandTemplateData struct {
+	Command
+	Candidates  []string
+	Children    []Command
+	Context     string
+	Invocation  string
+	Position    int
+	Subcommands []string
+}
+
+type commandTransition struct {
+	From string
+	To   string
+	Word string
+}
+
+type flagValues struct {
+	Context string
+	Names   []string
+	Values  []string
+}
+
+type completionTemplateData struct {
+	Command
+	Commands    []commandTemplateData
+	Transitions []commandTransition
+	Values      []flagValues
+}
+
+type markdownSection struct {
+	Description string
+	Flags       []Flag
+	Invocation  string
+}
+
+//go:embed templates/*.tmpl
+var completionTemplateFiles embed.FS
+
+var completionTemplates = template.Must(template.New("completion").Funcs(template.FuncMap{
+	"escapeFish":       escapeFish,
+	"join":             strings.Join,
+	"markdownFlagName": markdownFlagName,
+	"markdownText":     markdownText,
+	"zshText":          zshText,
+}).ParseFS(completionTemplateFiles, "templates/*.tmpl"))
 
 func Generate(shell string, command Command) (string, error) {
 	sort.Slice(command.Flags, func(i, j int) bool {
@@ -42,21 +91,19 @@ func Generate(shell string, command Command) (string, error) {
 
 // Markdown renders command metadata for a README generated section.
 func Markdown(command Command) string {
-	var out strings.Builder
-	writeMarkdown(&out, command.Name, command)
-	return strings.TrimSpace(out.String()) + "\n"
-}
-
-func writeMarkdown(out *strings.Builder, invocation string, command Command) {
-	if out.Len() > 0 {
-		out.WriteString("\n")
-	}
-	out.WriteString("### `" + invocation + "`\n\n")
-	out.WriteString(command.Description + "\n")
-	writeFlags(out, command.Flags)
-	for _, subcommand := range command.Subcommands {
-		writeMarkdown(out, invocation+" "+subcommand.Name, subcommand)
-	}
+	sections := []markdownSection{{
+		Description: command.Description,
+		Flags:       command.Flags,
+		Invocation:  command.Name,
+	}}
+	walkCommands(command.Subcommands, func(path []string, subcommand Command) {
+		sections = append(sections, markdownSection{
+			Description: subcommand.Description,
+			Flags:       subcommand.Flags,
+			Invocation:  command.Name + " " + strings.Join(path, " "),
+		})
+	})
+	return strings.TrimSpace(executeTemplate("markdown", sections)) + "\n"
 }
 
 // ReplaceSection updates one generated Markdown section.
@@ -78,37 +125,18 @@ func ReplaceSection(document, name, generated string) (string, error) {
 	return strings.TrimRight(before, "\n") + "\n" + start + "\n\n" + body + "\n\n" + end + tail, nil
 }
 
-func writeFlags(out *strings.Builder, flags []Flag) {
-	if len(flags) == 0 {
-		return
+func markdownFlagName(flag Flag) string {
+	name := "`--" + flag.Name + "`"
+	if flag.Short != "" {
+		name += ", `-" + flag.Short + "`"
 	}
-	out.WriteString("\n| Option | Description |\n| --- | --- |\n")
-	for _, flag := range flags {
-		name := "`--" + flag.Name + "`"
-		if flag.Short != "" {
-			name += ", `-" + flag.Short + "`"
-		}
-		if flag.Value {
-			name += " `<value>`"
-		}
-		out.WriteString("| " + name + " | " + strings.ReplaceAll(flag.Description, "|", "\\|") + " |\n")
+	if flag.Value {
+		name += " `<value>`"
 	}
+	return name
 }
 
-func names(command Command) string {
-	out := []string{"completion", "bash", "zsh", "fish", "nu"}
-	walkCommands(command.Subcommands, func(_ []string, subcommand Command) {
-		out = append(out, subcommand.Name)
-	})
-	for _, flag := range command.Flags {
-		out = append(out, "--"+flag.Name)
-		if flag.Short != "" {
-			out = append(out, "-"+flag.Short)
-		}
-		out = append(out, flag.Values...)
-	}
-	return strings.Join(out, " ")
-}
+func markdownText(value string) string { return strings.ReplaceAll(value, "|", "\\|") }
 
 func walkCommands(commands []Command, visit func([]string, Command)) {
 	var walk func([]string, []Command)
@@ -123,118 +151,128 @@ func walkCommands(commands []Command, visit func([]string, Command)) {
 }
 
 func bash(command Command) string {
-	return fmt.Sprintf(`_%[1]s_complete() {
-  local current="${COMP_WORDS[COMP_CWORD]}"
-  COMPREPLY=($(compgen -W '%[2]s' -- "$current"))
-}
-complete -F _%[1]s_complete %[1]s`, command.Name, names(command))
+	return executeTemplate("bash", completionData(command))
 }
 
 func fish(command Command) string {
-	lines := []string{"complete -c " + command.Name + " -e"}
-	for _, flag := range command.Flags {
-		line := "complete -c " + command.Name + " -l " + flag.Name
-		if flag.Short != "" {
-			line += " -s " + flag.Short
-		}
-		if flag.Value {
-			line += " -r"
-		}
-		if len(flag.Values) > 0 {
-			line += " -a '" + strings.Join(flag.Values, " ") + "'"
-		}
-		line += " -d '" + strings.ReplaceAll(flag.Description, "'", "\\'") + "'"
-		lines = append(lines, line)
-	}
-	lines = append(lines,
-		"complete -c "+command.Name+" -n '__fish_use_subcommand' -a completion -d 'Generate shell completions'",
-		"complete -c "+command.Name+" -n '__fish_seen_subcommand_from completion' -a 'bash zsh fish nu'",
-	)
-	walkCommands(command.Subcommands, func(path []string, subcommand Command) {
-		condition := "__fish_use_subcommand"
-		if len(path) > 1 {
-			condition = "__fish_seen_subcommand_from " + path[len(path)-2]
-		}
-		lines = append(lines, "complete -c "+command.Name+" -n '"+condition+"' -a "+subcommand.Name+" -d '"+escapeFish(subcommand.Description)+"'")
-		for _, flag := range subcommand.Flags {
-			line := "complete -c " + command.Name + " -n '__fish_seen_subcommand_from " + path[len(path)-1] + "' -l " + flag.Name
-			if flag.Short != "" {
-				line += " -s " + flag.Short
-			}
-			if flag.Value {
-				line += " -r"
-			}
-			if len(flag.Values) > 0 {
-				line += " -a '" + strings.Join(flag.Values, " ") + "'"
-			}
-			line += " -d '" + escapeFish(flag.Description) + "'"
-			lines = append(lines, line)
-		}
-	})
-	return strings.Join(lines, "\n")
+	return executeTemplate("fish", completionData(command))
 }
 
 func escapeFish(value string) string { return strings.ReplaceAll(value, "'", "\\'") }
 
 func zsh(command Command) string {
-	lines := []string{"#compdef " + command.Name, "_" + command.Name + "() {", "  _arguments \\"}
-	for _, flag := range command.Flags {
-		short := ""
-		if flag.Short != "" {
-			short = "(-" + flag.Short + ")"
-		}
-		value := ""
-		if flag.Value {
-			value = ":value:"
-			if len(flag.Values) > 0 {
-				value += "(" + strings.Join(flag.Values, " ") + ")"
-			}
-		}
-		lines = append(lines, "    '"+short+"--"+flag.Name+"["+strings.ReplaceAll(flag.Description, "'", "")+"]"+value+"' \\")
-	}
-	subcommands := []string{"completion"}
-	walkCommands(command.Subcommands, func(_ []string, subcommand Command) {
-		subcommands = append(subcommands, subcommand.Name)
-	})
-	lines = append(lines, "    '1:command:("+strings.Join(subcommands, " ")+")' \\", "    '2:shell:(bash zsh fish nu)'", "}", "compdef _"+command.Name+" "+command.Name)
-	return strings.Join(lines, "\n")
+	return executeTemplate("zsh", completionData(command))
 }
 
 func nu(command Command) string {
-	lines := []string{"export extern \"" + command.Name + "\" ["}
-	for _, flag := range command.Flags {
-		name := "  --" + flag.Name
-		if flag.Short != "" {
-			name += "(-" + flag.Short + ")"
-		}
-		if flag.Value {
-			name += ": string"
-		}
-		lines = append(lines, name+" # "+flag.Description)
-	}
-	lines = append(lines,
-		"  ...args: string",
-		"]",
-		"",
-		"export extern \""+command.Name+" completion\" [",
-		"  shell: string@\"nu-complete "+command.Name+" shell\"",
-		"]",
-		"",
-		"def \"nu-complete "+command.Name+" shell\" [] { [bash zsh fish nu] }",
-	)
+	data := completionTemplateData{Command: command}
 	walkCommands(command.Subcommands, func(path []string, subcommand Command) {
-		lines = append(lines, "", "export extern \""+command.Name+" "+strings.Join(path, " ")+"\" [")
-		for _, flag := range subcommand.Flags {
-			name := "  --" + flag.Name
-			if flag.Short != "" {
-				name += "(-" + flag.Short + ")"
-			}
-			if flag.Value {
-				name += ": string"
-			}
-			lines = append(lines, name+" # "+flag.Description)
-		}
-		lines = append(lines, "  ...args: string", "]")
+		data.Commands = append(data.Commands, commandTemplateData{
+			Command:    subcommand,
+			Invocation: strings.Join(path, " "),
+		})
 	})
-	return strings.Join(lines, "\n")
+	return executeTemplate("nu", data)
+}
+
+func executeTemplate(name string, data any) string {
+	var output bytes.Buffer
+	if err := completionTemplates.ExecuteTemplate(&output, name, data); err != nil {
+		panic(fmt.Sprintf("execute completion template %s: %v", name, err))
+	}
+	return strings.TrimSuffix(output.String(), "\n")
+}
+
+func zshText(value string) string { return strings.ReplaceAll(value, "'", "") }
+
+func completionData(command Command) completionTemplateData {
+	data := completionTemplateData{Command: command}
+	rootChildren := append([]Command{{
+		Name:        "completion",
+		Description: "Generate shell completions",
+	}}, command.Subcommands...)
+	root := commandTemplateData{
+		Command:     command,
+		Children:    rootChildren,
+		Position:    1,
+		Subcommands: commandNames(rootChildren),
+	}
+	root.Candidates = commandCandidates(root.Command.Flags, root.Subcommands)
+	data.Commands = append(data.Commands, root)
+	appendFlagValues(&data, "", command.Flags)
+
+	completion := commandTemplateData{
+		Command: Command{
+			Name:        "completion",
+			Description: "Generate shell completions",
+		},
+		Candidates: []string{"bash", "zsh", "fish", "nu"},
+		Context:    "completion",
+		Invocation: "completion",
+		Position:   2,
+	}
+	data.Commands = append(data.Commands, completion)
+	data.Transitions = append(data.Transitions, commandTransition{To: "completion", Word: "completion"})
+
+	walkCommands(command.Subcommands, func(path []string, subcommand Command) {
+		context := strings.Join(path, " ")
+		parent := strings.Join(path[:len(path)-1], " ")
+		children := childNames(subcommand)
+		data.Commands = append(data.Commands, commandTemplateData{
+			Command:     subcommand,
+			Candidates:  commandCandidates(subcommand.Flags, children),
+			Children:    subcommand.Subcommands,
+			Context:     context,
+			Invocation:  context,
+			Position:    len(path) + 1,
+			Subcommands: children,
+		})
+		data.Transitions = append(data.Transitions, commandTransition{
+			From: parent,
+			To:   context,
+			Word: subcommand.Name,
+		})
+		appendFlagValues(&data, context, subcommand.Flags)
+	})
+	return data
+}
+
+func childNames(command Command) []string {
+	return commandNames(command.Subcommands)
+}
+
+func commandNames(commands []Command) []string {
+	names := make([]string, 0, len(commands))
+	for _, subcommand := range commands {
+		names = append(names, subcommand.Name)
+	}
+	return names
+}
+
+func commandCandidates(flags []Flag, subcommands []string) []string {
+	candidates := append([]string{}, subcommands...)
+	for _, flag := range flags {
+		candidates = append(candidates, "--"+flag.Name)
+		if flag.Short != "" {
+			candidates = append(candidates, "-"+flag.Short)
+		}
+	}
+	return candidates
+}
+
+func appendFlagValues(data *completionTemplateData, context string, flags []Flag) {
+	for _, flag := range flags {
+		if len(flag.Values) == 0 {
+			continue
+		}
+		names := []string{"--" + flag.Name}
+		if flag.Short != "" {
+			names = append(names, "-"+flag.Short)
+		}
+		data.Values = append(data.Values, flagValues{
+			Context: context,
+			Names:   names,
+			Values:  append([]string{}, flag.Values...),
+		})
+	}
 }
