@@ -1,6 +1,6 @@
 {{define "nu"}}export extern "{{.Name}}" [
 {{range .Flags}}  --{{.Name}}{{with .Short}}(-{{.}}){{end}}{{if .Value}}: string{{with .ValueSet}}@"{{setFunction $.Name .}}"{{end}}{{end}} # {{.Description}}
-{{end}}  ...args: string{{with index .Commands 0}}{{with .ArgumentSet}}@"{{setFunction $.Name .}}"{{end}}{{end}}
+{{end}}  ...args: string{{with index .Commands 0}}{{with .ArgumentSet}}@"{{setFunction $.Name .}}"{{else}}@"__{{$.Name}}_completion_none"{{end}}{{end}}
 ]
 
 export extern "{{.Name}} completion" [
@@ -11,14 +11,15 @@ def "nu-complete {{.Name}} shell" [] { [bash zsh fish nu] }
 {{range .Commands}}{{if and .Invocation (ne .Context "completion")}}
 export extern "{{$.Name}} {{.Invocation}}" [
 {{range .Flags}}  --{{.Name}}{{with .Short}}(-{{.}}){{end}}{{if .Value}}: string{{with .ValueSet}}@"{{setFunction $.Name .}}"{{end}}{{end}} # {{.Description}}
-{{end}}  ...args: string{{with .ArgumentSet}}@"{{setFunction $.Name .}}"{{end}}
+{{end}}  ...args: string{{with .ArgumentSet}}@"{{setFunction $.Name .}}"{{else}}@"__{{$.Name}}_completion_none"{{end}}
 ]
 {{end}}{{end}}
+def "__{{.Name}}_completion_none" [] { [] }
 {{range .Sets}}
 def "{{setFunction $.Name .ID}}" [context?: string] {
   [{{range .Values}}
     {{quoteValue .}}{{end}}{{with .Command}}
     (try { {{nuCommand .}} | lines } catch { [] }){{end}}
-  ] | flatten
+  ] | flatten | uniq
 }
 {{end}}{{end}}

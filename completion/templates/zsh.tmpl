@@ -3,7 +3,7 @@
   local -a values
   values=({{range .Values}} {{quoteShell .}}{{end}})
 {{with .Command}}  values+=("${(@f)$({{zshCommand .}} 2>/dev/null)}")
-{{end}}  _describe 'value' values
+{{end}}  compadd -a values
 }
 {{end}}
 _{{.Name}}() {

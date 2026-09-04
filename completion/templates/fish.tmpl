@@ -1,8 +1,11 @@
 {{define "fish"}}complete -c {{.Name}} -e
+complete -c {{.Name}} -f
 {{range .Sets}}function {{setFunction $.Name .ID}}
-{{with .Values}}  printf '%s\n'{{range .}} {{quoteShell .}}{{end}}
-{{end}}{{with .Command}}  command {{fishCommand .}} 2>/dev/null; or true
-{{end}}end
+  begin
+{{with .Values}}    printf '%s\n'{{range .}} {{quoteShell .}}{{end}}
+{{end}}{{with .Command}}    command {{fishCommand .}} 2>/dev/null; or true
+{{end}}  end | string match -rv '\t'; or true
+end
 {{end}}
 function __{{.Name}}_completion_context
   set -l context ''

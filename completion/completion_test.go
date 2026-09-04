@@ -1,9 +1,11 @@
 package completion
 
 import (
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -218,7 +220,7 @@ func TestGeneratedDynamicCompletionHelpers(t *testing.T) {
 		"zsh": {
 			extension: "zsh",
 			arguments: func(path string) []string {
-				return []string{"-c", `compdef() { :; }; source "$1"; _describe() { print -l -- "${values[@]}"; }; __fixture_completion_values_0`, "completion-test", path}
+				return []string{"-c", `compdef() { :; }; source "$1"; compadd() { print -l -- "${values[@]}"; }; __fixture_completion_values_0`, "completion-test", path}
 			},
 		},
 	}
@@ -358,11 +360,86 @@ func TestZshPassesOnlyTheBufferPrefix(t *testing.T) {
 	}
 	executable := completionShell(t, "zsh")
 	path := writeCompletion(t, "zsh", command)
-	script := `compdef() { :; }; source "$1"; _describe() { print -rC1 -- "${values[@]}"; }; BUFFER="fixture --context before AFTER"; CURSOR=24; __fixture_completion_values_0`
+	script := `compdef() { :; }; source "$1"; compadd() { print -rC1 -- "${values[@]}"; }; BUFFER="fixture --context before AFTER"; CURSOR=24; __fixture_completion_values_0`
 	got := runLines(t, executable, []string{"-fc", script, "completion-test", path})
 	if strings.Join(got, "\n") != "fixture --context before" {
 		t.Fatalf("zsh passed text after the cursor: %#v", got)
 	}
+}
+
+func TestZshPreservesCandidatesContainingColons(t *testing.T) {
+	command := Command{Name: "fixture", CompletionCommand: []string{"printf", "%s\n", "ssh://host:22"}}
+	output := runZshInteractiveCompletion(t, command, "fixture s")
+	if !strings.Contains(output, "ARGS:ssh://host:22") {
+		t.Fatalf("zsh changed a candidate containing a colon:\n%s", output)
+	}
+}
+
+func TestNushellDeduplicatesCandidates(t *testing.T) {
+	command := Command{Name: "fixture", CompletionCommand: []string{"printf", "%s\n", "same", "same"}}
+	candidates := runNuCompletion(t, "", command, "fixture ")
+	count := 0
+	for _, candidate := range candidates {
+		if candidate == "same" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Fatalf("Nushell returned %d copies of a candidate: %#v", count, candidates)
+	}
+}
+
+func TestFishRejectsCandidatesContainingTabs(t *testing.T) {
+	command := Command{
+		Name: "fixture",
+		Flags: []Flag{{
+			Name:              "provider",
+			Value:             true,
+			Values:            []string{"static", "static\ttab"},
+			CompletionCommand: []string{"printf", "%s\n", "dynamic", "dynamic\ttab"},
+		}},
+	}
+	executable := completionShell(t, "fish")
+	path := writeCompletion(t, "fish", command)
+	candidates := runLines(t, executable, []string{"-N", "-c", `source $argv[1]; complete -C "fixture --provider "`, path})
+	assertContainsCandidate(t, candidates, "static")
+	assertContainsCandidate(t, candidates, "dynamic")
+	assertMissingCandidate(t, candidates, "dynamic\ttab")
+	assertMissingCandidate(t, candidates, "static\ttab")
+	assertMissingCandidate(t, candidates, "dynamic\t")
+}
+
+func TestGeneratedCompletionsSuppressUnmodeledFiles(t *testing.T) {
+	command := Command{Name: "fixture"}
+	directory := t.TempDir()
+	fileName := "unmodeled-file"
+	if err := os.WriteFile(filepath.Join(directory, fileName), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("bash", func(t *testing.T) {
+		candidates := runBashCompletion(t, command, "fixture u", "fixture", "u")
+		assertMissingCandidate(t, candidates, fileName)
+	})
+
+	t.Run("fish", func(t *testing.T) {
+		executable := completionShell(t, "fish")
+		path := writeCompletion(t, "fish", command)
+		candidates := runLinesIn(t, directory, executable, []string{"-N", "-c", `source $argv[1]; complete -C "fixture u"`, path})
+		assertMissingCandidate(t, candidates, fileName)
+	})
+
+	t.Run("nu", func(t *testing.T) {
+		candidates := runNuCompletion(t, directory, command, "fixture u")
+		assertMissingCandidate(t, candidates, fileName)
+	})
+
+	t.Run("zsh", func(t *testing.T) {
+		output := runZshInteractiveCompletionIn(t, directory, command, "fixture u")
+		if !strings.Contains(output, "ARGS:u") || strings.Contains(output, "ARGS:"+fileName) {
+			t.Fatalf("zsh leaked an unmodeled filesystem candidate:\n%s", output)
+		}
+	})
 }
 
 func TestFishSuppressesFilesForOwnedCandidates(t *testing.T) {
@@ -422,6 +499,61 @@ func runBashCompletion(t *testing.T, command Command, line string, words ...stri
 		return nil
 	}
 	return strings.Split(strings.TrimSuffix(string(output), "\x00"), "\x00")
+}
+
+func runNuCompletion(t *testing.T, directory string, command Command, line string) []string {
+	t.Helper()
+	executable := completionShell(t, "nu")
+	completionPath := writeCompletion(t, "nu", command)
+	script := "source " + quoteValue(completionPath) + "\n" + line
+	scriptPath := filepath.Join(t.TempDir(), "completion-input.nu")
+	if err := os.WriteFile(scriptPath, []byte(script), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	process := exec.Command(executable, "--no-config-file", "--no-std-lib", "--ide-complete", strconv.Itoa(len(script)), scriptPath)
+	process.Dir = directory
+	output, err := process.CombinedOutput()
+	if err != nil {
+		t.Fatalf("run Nushell completion: %v\n%s", err, output)
+	}
+	var result struct {
+		Completions []string `json:"completions"`
+	}
+	if err := json.Unmarshal(output, &result); err != nil {
+		t.Fatalf("decode Nushell completion output: %v\n%s", err, output)
+	}
+	return result.Completions
+}
+
+func runZshInteractiveCompletion(t *testing.T, command Command, line string) string {
+	t.Helper()
+	return runZshInteractiveCompletionIn(t, "", command, line)
+}
+
+func runZshInteractiveCompletionIn(t *testing.T, directory string, command Command, line string) string {
+	t.Helper()
+	executable := completionShell(t, "zsh")
+	completionPath := writeCompletion(t, "zsh", command)
+	dumpPath := filepath.Join(t.TempDir(), "zcompdump")
+	script := `
+zmodload zsh/zpty
+export GO_UTILS_COMPLETION_PATH=$1
+export GO_UTILS_ZCOMPDUMP=$2
+zpty completion-shell zsh -f
+zpty -w completion-shell 'PS1=READY\>; autoload -Uz compinit; compinit -C -d "$GO_UTILS_ZCOMPDUMP"; fixture() { print -r -- "ARGS:${(j:\x1f:)@}"; }; source "$GO_UTILS_COMPLETION_PATH"'
+zpty -r completion-shell output '*READY>*'
+zpty -w completion-shell "$3"$'\t\n'
+zpty -r completion-shell output '*READY>*'
+print -r -- "$output"
+zpty -d completion-shell
+`
+	process := exec.Command(executable, "-fc", script, "completion-test", completionPath, dumpPath, line)
+	process.Dir = directory
+	output, err := process.CombinedOutput()
+	if err != nil {
+		t.Fatalf("run interactive Zsh completion: %v\n%s", err, output)
+	}
+	return string(output)
 }
 
 func runLines(t *testing.T, executable string, arguments []string) []string {

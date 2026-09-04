@@ -8,7 +8,9 @@ Shared Go primitives for Roshan's terminal tools.
   short help, while `Command.LongDescription` supplies detailed help.
   `CompletionCommand` adds newline-delimited runtime candidates to a command
   argument or flag. Shells preserve each line as data, including spaces and
-  shell metacharacters.
+  shell metacharacters. Generated completions suppress unmodeled filesystem
+  candidates in every shell. Fish omits records that contain a tab because its
+  completion protocol reserves tabs for descriptions.
 - `config`: loads typed YAML, applies environment overrides, and emits JSON Schema.
 - `diffview`: renders multi-repository diffs as symbol and call trees.
 - `git`: runs Git with inherited repository state removed.
