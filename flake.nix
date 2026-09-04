@@ -9,7 +9,8 @@
   outputs =
     { nixpkgs, systems, ... }:
     let
-      eachSystem = nixpkgs.lib.genAttrs (import systems);
+      supportedSystems = builtins.filter (system: system != "x86_64-darwin") (import systems);
+      eachSystem = nixpkgs.lib.genAttrs supportedSystems;
     in
     {
       formatter = eachSystem (
@@ -91,6 +92,7 @@
               pkgs.go
               pkgs.gopls
               pkgs.gotools
+              pkgs.go-tools
               pkgs.cue
               pkgs.ripgrep
             ];
