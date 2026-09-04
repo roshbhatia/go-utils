@@ -353,7 +353,7 @@ func TestZshPassesOnlyTheBufferPrefix(t *testing.T) {
 		Flags: []Flag{{
 			Name:              "context",
 			Value:             true,
-			CompletionCommand: []string{"/usr/bin/printf", "%s\\n", ContextPlaceholder},
+			CompletionCommand: []string{"printf", "%s\\n", ContextPlaceholder},
 		}},
 	}
 	executable := completionShell(t, "zsh")
@@ -368,7 +368,7 @@ func TestZshPassesOnlyTheBufferPrefix(t *testing.T) {
 func TestFishSuppressesFilesForOwnedCandidates(t *testing.T) {
 	command := Command{
 		Name:              "fixture",
-		CompletionCommand: []string{"/usr/bin/printf", "%s\\n", "dynamic value"},
+		CompletionCommand: []string{"printf", "%s\\n", "dynamic value"},
 	}
 	executable := completionShell(t, "fish")
 	path := writeCompletion(t, "fish", command)
