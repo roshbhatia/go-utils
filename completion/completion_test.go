@@ -74,6 +74,29 @@ func TestGenerate(t *testing.T) {
 	}
 }
 
+func TestZshCombinesRootSubcommandsWithPositionalCompletion(t *testing.T) {
+	generated, err := Generate("zsh", Command{
+		Name:              "sample",
+		CompletionCommand: []string{"sample", "values"},
+		Subcommands:       []Command{{Name: "inspect"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"values=( 'completion' 'inspect')",
+		"'sample' 'values'",
+		"'*:argument:__sample_completion_values_0'",
+	} {
+		if !strings.Contains(generated, want) {
+			t.Fatalf("zsh completion lacks %q:\n%s", want, generated)
+		}
+	}
+	if strings.Contains(generated, "'1:command:(completion inspect)'") {
+		t.Fatalf("zsh root positional completion was shadowed by subcommands:\n%s", generated)
+	}
+}
+
 func nestedCommand() Command {
 	return Command{
 		Name: "sample",

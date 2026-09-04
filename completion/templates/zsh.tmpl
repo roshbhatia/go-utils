@@ -19,7 +19,9 @@ _{{.Name}}() {
       _arguments \
 {{range .Flags}}        '{{if .Short}}(-{{.Short}}){{end}}--{{.Name}}[{{zshText .Description}}]{{if .Value}}:value:{{with .ValueSet}}{{setFunction $.Name .}}{{end}}{{end}}' \
 {{end}}{{if eq .Context "completion"}}        '{{.Position}}:shell:(bash zsh fish nu)'
-{{else if .Subcommands}}        '{{.Position}}:command:({{join .Subcommands " "}})'
+{{else if .Subcommands}}{{with .ArgumentSet}}        '*:argument:{{setFunction $.Name .}}'
+{{else}}        '{{.Position}}:command:({{join .Subcommands " "}})'
+{{end}}
 {{else}}{{with .ArgumentSet}}        '*:argument:{{setFunction $.Name .}}'
 {{else}}        '*:argument:'
 {{end}}

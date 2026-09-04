@@ -256,7 +256,7 @@ func completionData(command Command) completionTemplateData {
 	}}, command.Subcommands...)
 	root := commandTemplateData{
 		Command:     command,
-		ArgumentSet: appendCompletionSet(&data, nil, command.CompletionCommand),
+		ArgumentSet: appendCompletionSet(&data, positionalValues(rootChildren, command.CompletionCommand), command.CompletionCommand),
 		Children:    rootChildren,
 		Flags:       rootFlags,
 		Position:    1,
@@ -284,7 +284,7 @@ func completionData(command Command) completionTemplateData {
 		children := childNames(subcommand)
 		data.Commands = append(data.Commands, commandTemplateData{
 			Command:     subcommand,
-			ArgumentSet: appendCompletionSet(&data, nil, subcommand.CompletionCommand),
+			ArgumentSet: appendCompletionSet(&data, positionalValues(subcommand.Subcommands, subcommand.CompletionCommand), subcommand.CompletionCommand),
 			Candidates:  commandCandidates(subcommand.Flags, children),
 			Children:    subcommand.Subcommands,
 			Context:     context,
@@ -300,6 +300,13 @@ func completionData(command Command) completionTemplateData {
 		})
 	})
 	return data
+}
+
+func positionalValues(subcommands []Command, completionCommand []string) []string {
+	if len(completionCommand) == 0 {
+		return nil
+	}
+	return commandNames(subcommands)
 }
 
 func childNames(command Command) []string {
