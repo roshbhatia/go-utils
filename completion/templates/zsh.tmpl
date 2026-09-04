@@ -2,7 +2,7 @@
 {{range .Sets}}{{setFunction $.Name .ID}}() {
   local -a values
   values=({{range .Values}} {{quoteShell .}}{{end}})
-{{with .Command}}  values+=("${(@f)$({{range .}}{{quoteShell .}} {{end}}2>/dev/null)}")
+{{with .Command}}  values+=("${(@f)$({{zshCommand .}} 2>/dev/null)}")
 {{end}}  _describe 'value' values
 }
 {{end}}

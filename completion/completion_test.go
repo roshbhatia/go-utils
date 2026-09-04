@@ -97,6 +97,32 @@ func TestZshCombinesRootSubcommandsWithPositionalCompletion(t *testing.T) {
 	}
 }
 
+func TestDynamicCompletionCanReceiveTheCurrentCommandLine(t *testing.T) {
+	command := Command{
+		Name: "sample",
+		Flags: []Flag{{
+			Name:              "model",
+			Value:             true,
+			CompletionCommand: []string{"sample", "models", ContextPlaceholder},
+		}},
+	}
+	wants := map[string]string{
+		"bash": `"${COMP_LINE:0:COMP_POINT}"`,
+		"fish": `(commandline -cp)`,
+		"nu":   `($context | default "")`,
+		"zsh":  `"$BUFFER"`,
+	}
+	for shell, want := range wants {
+		generated, err := Generate(shell, command)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(generated, want) || strings.Contains(generated, ContextPlaceholder) {
+			t.Fatalf("%s completion did not render its context placeholder:\n%s", shell, generated)
+		}
+	}
+}
+
 func nestedCommand() Command {
 	return Command{
 		Name: "sample",

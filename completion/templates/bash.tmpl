@@ -1,6 +1,6 @@
 {{define "bash"}}{{range .Sets}}{{setFunction $.Name .ID}}() {
 {{with .Values}}  printf '%s\n'{{range .}} {{quoteShell .}}{{end}}
-{{end}}{{with .Command}}  {{range .}}{{quoteShell .}} {{end}}2>/dev/null || true
+{{end}}{{with .Command}}  {{bashCommand .}} 2>/dev/null || true
 {{end}}}
 {{end}}_{{.Name}}_complete() {
   local current="${COMP_WORDS[COMP_CWORD]}"

@@ -11,6 +11,9 @@ import (
 	"text/template"
 )
 
+// ContextPlaceholder passes the shell's current command line to a dynamic completion command.
+const ContextPlaceholder = "{completion.context}"
+
 type Flag struct {
 	Name              string
 	Short             string
@@ -86,7 +89,9 @@ var completionTemplateFiles embed.FS
 
 var completionTemplates = template.Must(template.New("completion").Funcs(template.FuncMap{
 	"escapeFish":       escapeFish,
+	"bashCommand":      bashCommand,
 	"commandSynopsis":  commandSynopsis,
+	"fishCommand":      fishCommand,
 	"join":             strings.Join,
 	"markdownFlagName": markdownFlagName,
 	"markdownText":     markdownText,
@@ -95,6 +100,7 @@ var completionTemplates = template.Must(template.New("completion").Funcs(templat
 	"quoteValue":       quoteValue,
 	"setFunction":      setFunction,
 	"zshText":          zshText,
+	"zshCommand":       zshCommand,
 }).ParseFS(completionTemplateFiles, "templates/*.tmpl"))
 
 func Generate(shell string, command Command) (string, error) {
@@ -222,10 +228,38 @@ func quoteValue(value string) string {
 	return string(encoded)
 }
 
+func commandWithContext(command []string, context string) string {
+	quoted := make([]string, 0, len(command))
+	for _, argument := range command {
+		if argument == ContextPlaceholder {
+			quoted = append(quoted, context)
+			continue
+		}
+		quoted = append(quoted, quoteShell(argument))
+	}
+	return strings.Join(quoted, " ")
+}
+
+func bashCommand(command []string) string {
+	return commandWithContext(command, `"${COMP_LINE:0:COMP_POINT}"`)
+}
+
+func fishCommand(command []string) string {
+	return commandWithContext(command, `(commandline -cp)`)
+}
+
+func zshCommand(command []string) string {
+	return commandWithContext(command, `"$BUFFER"`)
+}
+
 func nuCommand(command []string) string {
 	quoted := make([]string, 0, len(command)+1)
 	quoted = append(quoted, "run-external")
 	for _, argument := range command {
+		if argument == ContextPlaceholder {
+			quoted = append(quoted, `($context | default "")`)
+			continue
+		}
 		quoted = append(quoted, quoteValue(argument))
 	}
 	return strings.Join(quoted, " ")

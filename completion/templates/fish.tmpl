@@ -1,7 +1,7 @@
 {{define "fish"}}complete -c {{.Name}} -e
 {{range .Sets}}function {{setFunction $.Name .ID}}
 {{with .Values}}  printf '%s\n'{{range .}} {{quoteShell .}}{{end}}
-{{end}}{{with .Command}}  command {{range .}}{{quoteShell .}} {{end}}2>/dev/null; or true
+{{end}}{{with .Command}}  command {{fishCommand .}} 2>/dev/null; or true
 {{end}}end
 {{end}}
 function __{{.Name}}_completion_context

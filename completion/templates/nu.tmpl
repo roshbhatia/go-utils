@@ -15,7 +15,7 @@ export extern "{{$.Name}} {{.Invocation}}" [
 ]
 {{end}}{{end}}
 {{range .Sets}}
-def "{{setFunction $.Name .ID}}" [] {
+def "{{setFunction $.Name .ID}}" [context?: string] {
   [{{range .Values}}
     {{quoteValue .}}{{end}}{{with .Command}}
     (try { {{nuCommand .}} | lines } catch { [] }){{end}}
