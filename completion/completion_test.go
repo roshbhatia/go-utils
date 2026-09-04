@@ -15,24 +15,31 @@ func TestGenerate(t *testing.T) {
 		"bash": {
 			"':inspect') context='inspect'",
 			"'inspect:raw') context='inspect raw'",
-			"compgen -W 'completion inspect --color -c'",
-			"compgen -W 'raw --json'",
+			"local candidates='completion inspect --color -c'",
+			"local candidates='raw --json'",
+			"__sample_completion_values_0()",
+			"'sample' 'values' '--kind' 'color'",
 		},
 		"fish": {
 			`test (__sample_completion_context) = ""' -a inspect -d 'Inspect one record'`,
 			`test (__sample_completion_context) = "inspect"' -a raw -d 'Inspect raw data'`,
-			"-l color -s c -r -a 'auto always never'",
+			"-l color -s c -r -a '(__sample_completion_values_0)'",
+			"command 'sample' 'values' '--kind' 'color'",
 		},
 		"nu": {
 			`export extern "sample inspect"`,
 			`export extern "sample inspect raw"`,
-			"--color(-c): string # Color's mode",
+			`--color(-c): string@"__sample_completion_values_0" # Color's mode`,
+			`...args: string@"__sample_completion_values_1"`,
+			`run-external "sample" "values" "--kind" "color"`,
 		},
 		"zsh": {
 			"':inspect') context='inspect'",
 			"'inspect:raw') context='inspect raw'",
 			"'1:command:(completion inspect)'",
 			"'2:command:(raw)'",
+			":value:__sample_completion_values_0",
+			"'*:argument:__sample_completion_values_1'",
 		},
 	}
 	rejects := map[string][]string{
@@ -71,13 +78,18 @@ func nestedCommand() Command {
 	return Command{
 		Name: "sample",
 		Flags: []Flag{{
-			Name:        "color",
-			Short:       "c",
-			Description: "Color's mode",
-			Value:       true,
-			Values:      []string{"auto", "always", "never"},
+			Name:              "color",
+			Short:             "c",
+			Description:       "Color's mode",
+			Value:             true,
+			Values:            []string{"auto", "always", "never"},
+			CompletionCommand: []string{"sample", "values", "--kind", "color"},
 		}},
-		Subcommands: []Command{{Name: "inspect", Description: "Inspect one record", Flags: []Flag{{Name: "json"}}, Subcommands: []Command{{Name: "raw", Description: "Inspect raw data"}}}},
+		Subcommands: []Command{{Name: "inspect", Description: "Inspect one record", Flags: []Flag{{Name: "json"}}, Subcommands: []Command{{
+			Name:              "raw",
+			Description:       "Inspect raw data",
+			CompletionCommand: []string{"sample", "objects"},
+		}}}},
 	}
 }
 
@@ -115,6 +127,77 @@ func TestGeneratedCompletionsParse(t *testing.T) {
 			command := exec.Command(executable, test.arguments(path)...)
 			if output, err := command.CombinedOutput(); err != nil {
 				t.Fatalf("parse generated completion: %v\n%s", err, output)
+			}
+		})
+	}
+}
+
+func TestGeneratedDynamicCompletionHelpers(t *testing.T) {
+	directory := t.TempDir()
+	provider := filepath.Join(directory, "provider-values")
+	if err := os.WriteFile(provider, []byte("#!/bin/sh\nprintf 'alpha\\nbeta\\n'\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	command := Command{
+		Name: "fixture",
+		Flags: []Flag{{
+			Name:              "provider",
+			Value:             true,
+			Values:            []string{"static"},
+			CompletionCommand: []string{provider},
+		}},
+	}
+	tests := map[string]struct {
+		extension string
+		arguments func(string) []string
+	}{
+		"bash": {
+			extension: "bash",
+			arguments: func(path string) []string {
+				return []string{"-c", `source "$1"; __fixture_completion_values_0`, "completion-test", path}
+			},
+		},
+		"fish": {
+			extension: "fish",
+			arguments: func(path string) []string {
+				return []string{"-c", `source $argv[1]; __fixture_completion_values_0`, path}
+			},
+		},
+		"nu": {
+			extension: "nu",
+			arguments: func(path string) []string {
+				return []string{"--no-config-file", "--no-std-lib", "--commands", "source " + quoteValue(path) + "; __fixture_completion_values_0 | to json --raw"}
+			},
+		},
+		"zsh": {
+			extension: "zsh",
+			arguments: func(path string) []string {
+				return []string{"-c", `compdef() { :; }; source "$1"; _describe() { print -l -- "${values[@]}"; }; __fixture_completion_values_0`, "completion-test", path}
+			},
+		},
+	}
+	for shell, test := range tests {
+		t.Run(shell, func(t *testing.T) {
+			executable, err := exec.LookPath(shell)
+			if err != nil {
+				t.Skipf("%s is unavailable", shell)
+			}
+			generated, err := Generate(shell, command)
+			if err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(directory, "completion."+test.extension)
+			if err := os.WriteFile(path, []byte(generated), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			output, err := exec.Command(executable, test.arguments(path)...).CombinedOutput()
+			if err != nil {
+				t.Fatalf("run generated helper: %v\n%s", err, output)
+			}
+			for _, want := range []string{"static", "alpha", "beta"} {
+				if !strings.Contains(string(output), want) {
+					t.Fatalf("dynamic output lacks %q: %s", want, output)
+				}
 			}
 		})
 	}

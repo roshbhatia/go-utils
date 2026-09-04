@@ -1,4 +1,8 @@
-{{define "bash"}}_{{.Name}}_complete() {
+{{define "bash"}}{{range .Sets}}{{setFunction $.Name .ID}}() {
+{{with .Values}}  printf '%s\n'{{range .}} {{quoteShell .}}{{end}}
+{{end}}{{with .Command}}  {{range .}}{{quoteShell .}} {{end}}2>/dev/null || true
+{{end}}}
+{{end}}_{{.Name}}_complete() {
   local current="${COMP_WORDS[COMP_CWORD]}"
   local previous=""
   local context=""
@@ -14,10 +18,14 @@
 {{end}}    esac
   done
   case "$context:$previous" in
-{{range .Values}}{{$valueSet := .}}{{range .Names}}    '{{$valueSet.Context}}:{{.}}') COMPREPLY=($(compgen -W '{{join $valueSet.Values " "}}' -- "$current")); return ;;
+{{range .Values}}{{$valueSet := .}}{{range .Names}}    '{{$valueSet.Context}}:{{.}}') COMPREPLY=($(compgen -W "$({{setFunction $.Name $valueSet.Set}})" -- "$current")); return ;;
 {{end}}{{end}}  esac
   case "$context" in
-{{range .Commands}}    '{{.Context}}') COMPREPLY=($(compgen -W '{{join .Candidates " "}}' -- "$current")) ;;
+{{range .Commands}}    '{{.Context}}')
+      local candidates='{{join .Candidates " "}}'
+{{with .ArgumentSet}}      candidates="$candidates $({{setFunction $.Name .}})"
+{{end}}      COMPREPLY=($(compgen -W "$candidates" -- "$current"))
+      ;;
 {{end}}  esac
 }
 complete -F _{{.Name}}_complete {{.Name}}{{end}}

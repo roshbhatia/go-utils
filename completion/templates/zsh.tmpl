@@ -1,4 +1,11 @@
 {{define "zsh"}}#compdef {{.Name}}
+{{range .Sets}}{{setFunction $.Name .ID}}() {
+  local -a values
+  values=({{range .Values}} {{quoteShell .}}{{end}})
+{{with .Command}}  values+=("${(@f)$({{range .}}{{quoteShell .}} {{end}}2>/dev/null)}")
+{{end}}  _describe 'value' values
+}
+{{end}}
 _{{.Name}}() {
   local context=''
   local word
@@ -10,10 +17,12 @@ _{{.Name}}() {
   case "$context" in
 {{range .Commands}}    '{{.Context}}')
       _arguments \
-{{range .Flags}}        '{{if .Short}}(-{{.Short}}){{end}}--{{.Name}}[{{zshText .Description}}]{{if .Value}}:value:{{with .Values}}({{join . " "}}){{end}}{{end}}' \
+{{range .Flags}}        '{{if .Short}}(-{{.Short}}){{end}}--{{.Name}}[{{zshText .Description}}]{{if .Value}}:value:{{with .ValueSet}}{{setFunction $.Name .}}{{end}}{{end}}' \
 {{end}}{{if eq .Context "completion"}}        '{{.Position}}:shell:(bash zsh fish nu)'
 {{else if .Subcommands}}        '{{.Position}}:command:({{join .Subcommands " "}})'
+{{else}}{{with .ArgumentSet}}        '*:argument:{{setFunction $.Name .}}'
 {{else}}        '*:argument:'
+{{end}}
 {{end}}      ;;
 {{end}}  esac
 }

@@ -3,6 +3,7 @@ package completion
 import (
 	"bytes"
 	"embed"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -11,27 +12,36 @@ import (
 )
 
 type Flag struct {
-	Name        string
-	Short       string
-	Description string
-	Value       bool
-	Values      []string
+	Name              string
+	Short             string
+	Description       string
+	Value             bool
+	Values            []string
+	CompletionCommand []string
 }
 
 type Command struct {
-	Name            string
-	Description     string
-	Synopsis        string
-	LongDescription string
-	Flags           []Flag
-	Subcommands     []Command
+	Name              string
+	Description       string
+	Synopsis          string
+	LongDescription   string
+	Flags             []Flag
+	Subcommands       []Command
+	CompletionCommand []string
+}
+
+type flagTemplateData struct {
+	Flag
+	ValueSet string
 }
 
 type commandTemplateData struct {
 	Command
+	ArgumentSet string
 	Candidates  []string
 	Children    []Command
 	Context     string
+	Flags       []flagTemplateData
 	Invocation  string
 	Position    int
 	Subcommands []string
@@ -46,12 +56,20 @@ type commandTransition struct {
 type flagValues struct {
 	Context string
 	Names   []string
+	Set     string
+}
+
+type completionSet struct {
+	Command []string
+	ID      string
 	Values  []string
 }
 
 type completionTemplateData struct {
 	Command
 	Commands    []commandTemplateData
+	Flags       []flagTemplateData
+	Sets        []completionSet
 	Transitions []commandTransition
 	Values      []flagValues
 }
@@ -72,6 +90,10 @@ var completionTemplates = template.Must(template.New("completion").Funcs(templat
 	"join":             strings.Join,
 	"markdownFlagName": markdownFlagName,
 	"markdownText":     markdownText,
+	"nuCommand":        nuCommand,
+	"quoteShell":       quoteShell,
+	"quoteValue":       quoteValue,
+	"setFunction":      setFunction,
 	"zshText":          zshText,
 }).ParseFS(completionTemplateFiles, "templates/*.tmpl"))
 
@@ -178,14 +200,7 @@ func zsh(command Command) string {
 }
 
 func nu(command Command) string {
-	data := completionTemplateData{Command: command}
-	walkCommands(command.Subcommands, func(path []string, subcommand Command) {
-		data.Commands = append(data.Commands, commandTemplateData{
-			Command:    subcommand,
-			Invocation: strings.Join(path, " "),
-		})
-	})
-	return executeTemplate("nu", data)
+	return executeTemplate("nu", completionData(command))
 }
 
 func executeTemplate(name string, data any) string {
@@ -198,21 +213,57 @@ func executeTemplate(name string, data any) string {
 
 func zshText(value string) string { return strings.ReplaceAll(value, "'", "") }
 
+func quoteShell(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", `'"'"'`) + "'"
+}
+
+func quoteValue(value string) string {
+	encoded, _ := json.Marshal(value)
+	return string(encoded)
+}
+
+func nuCommand(command []string) string {
+	quoted := make([]string, 0, len(command)+1)
+	quoted = append(quoted, "run-external")
+	for _, argument := range command {
+		quoted = append(quoted, quoteValue(argument))
+	}
+	return strings.Join(quoted, " ")
+}
+
+func setFunction(commandName, setID string) string {
+	var name strings.Builder
+	name.WriteString("__")
+	for _, character := range commandName {
+		if character >= 'a' && character <= 'z' || character >= 'A' && character <= 'Z' || character >= '0' && character <= '9' {
+			name.WriteRune(character)
+		} else {
+			name.WriteByte('_')
+		}
+	}
+	name.WriteString("_completion_")
+	name.WriteString(setID)
+	return name.String()
+}
+
 func completionData(command Command) completionTemplateData {
 	data := completionTemplateData{Command: command}
+	rootFlags := appendFlagValues(&data, "", command.Flags)
+	data.Flags = rootFlags
 	rootChildren := append([]Command{{
 		Name:        "completion",
 		Description: "Generate shell completions",
 	}}, command.Subcommands...)
 	root := commandTemplateData{
 		Command:     command,
+		ArgumentSet: appendCompletionSet(&data, nil, command.CompletionCommand),
 		Children:    rootChildren,
+		Flags:       rootFlags,
 		Position:    1,
 		Subcommands: commandNames(rootChildren),
 	}
 	root.Candidates = commandCandidates(root.Command.Flags, root.Subcommands)
 	data.Commands = append(data.Commands, root)
-	appendFlagValues(&data, "", command.Flags)
 
 	completion := commandTemplateData{
 		Command: Command{
@@ -233,9 +284,11 @@ func completionData(command Command) completionTemplateData {
 		children := childNames(subcommand)
 		data.Commands = append(data.Commands, commandTemplateData{
 			Command:     subcommand,
+			ArgumentSet: appendCompletionSet(&data, nil, subcommand.CompletionCommand),
 			Candidates:  commandCandidates(subcommand.Flags, children),
 			Children:    subcommand.Subcommands,
 			Context:     context,
+			Flags:       appendFlagValues(&data, context, subcommand.Flags),
 			Invocation:  context,
 			Position:    len(path) + 1,
 			Subcommands: children,
@@ -245,7 +298,6 @@ func completionData(command Command) completionTemplateData {
 			To:   context,
 			Word: subcommand.Name,
 		})
-		appendFlagValues(&data, context, subcommand.Flags)
 	})
 	return data
 }
@@ -273,9 +325,12 @@ func commandCandidates(flags []Flag, subcommands []string) []string {
 	return candidates
 }
 
-func appendFlagValues(data *completionTemplateData, context string, flags []Flag) {
+func appendFlagValues(data *completionTemplateData, context string, flags []Flag) []flagTemplateData {
+	templateFlags := make([]flagTemplateData, 0, len(flags))
 	for _, flag := range flags {
-		if len(flag.Values) == 0 {
+		set := appendCompletionSet(data, flag.Values, flag.CompletionCommand)
+		templateFlags = append(templateFlags, flagTemplateData{Flag: flag, ValueSet: set})
+		if set == "" {
 			continue
 		}
 		names := []string{"--" + flag.Name}
@@ -285,7 +340,21 @@ func appendFlagValues(data *completionTemplateData, context string, flags []Flag
 		data.Values = append(data.Values, flagValues{
 			Context: context,
 			Names:   names,
-			Values:  append([]string{}, flag.Values...),
+			Set:     set,
 		})
 	}
+	return templateFlags
+}
+
+func appendCompletionSet(data *completionTemplateData, values, command []string) string {
+	if len(values) == 0 && len(command) == 0 {
+		return ""
+	}
+	id := fmt.Sprintf("values_%d", len(data.Sets))
+	data.Sets = append(data.Sets, completionSet{
+		Command: append([]string{}, command...),
+		ID:      id,
+		Values:  append([]string{}, values...),
+	})
+	return id
 }

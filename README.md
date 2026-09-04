@@ -6,6 +6,7 @@ Shared Go primitives for Roshan's terminal tools.
 - `completion`: generates contextual Bash, Zsh, Fish, and Nushell completions
   and Markdown help from one nested command tree. `Command.Synopsis` supplies
   short help, while `Command.LongDescription` supplies detailed help.
+  `CompletionCommand` adds runtime candidates to a command argument or flag.
 - `config`: loads typed YAML, applies environment overrides, and emits JSON Schema.
 - `diffview`: renders multi-repository diffs as symbol and call trees.
 - `git`: runs Git with inherited repository state removed.

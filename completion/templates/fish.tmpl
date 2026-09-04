@@ -1,4 +1,9 @@
 {{define "fish"}}complete -c {{.Name}} -e
+{{range .Sets}}function {{setFunction $.Name .ID}}
+{{with .Values}}  printf '%s\n'{{range .}} {{quoteShell .}}{{end}}
+{{end}}{{with .Command}}  command {{range .}}{{quoteShell .}} {{end}}2>/dev/null; or true
+{{end}}end
+{{end}}
 function __{{.Name}}_completion_context
   set -l context ''
   set -l words (commandline -opc)
@@ -11,7 +16,8 @@ function __{{.Name}}_completion_context
   echo $context
 end
 {{range .Commands}}{{$command := . -}}
-{{range $command.Flags}}complete -c {{$.Name}} -n 'test (__{{$.Name}}_completion_context) = "{{$command.Context}}"' -l {{.Name}}{{with .Short}} -s {{.}}{{end}}{{if .Value}} -r{{end}}{{with .Values}} -a '{{join . " "}}'{{end}} -d '{{escapeFish .Description}}'
+{{range $command.Flags}}complete -c {{$.Name}} -n 'test (__{{$.Name}}_completion_context) = "{{$command.Context}}"' -l {{.Name}}{{with .Short}} -s {{.}}{{end}}{{if .Value}} -r{{end}}{{with .ValueSet}} -a '({{setFunction $.Name .}})'{{end}} -d '{{escapeFish .Description}}'
 {{end}}{{range $command.Children}}complete -c {{$.Name}} -n 'test (__{{$.Name}}_completion_context) = "{{$command.Context}}"' -a {{.Name}} -d '{{escapeFish (commandSynopsis .)}}'
 {{end}}{{if eq $command.Context "completion"}}complete -c {{$.Name}} -n 'test (__{{$.Name}}_completion_context) = "completion"' -a 'bash zsh fish nu'
+{{end}}{{with $command.ArgumentSet}}complete -c {{$.Name}} -n 'test (__{{$.Name}}_completion_context) = "{{$command.Context}}"' -a '({{setFunction $.Name .}})'
 {{end}}{{end}}{{end}}
