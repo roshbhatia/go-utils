@@ -138,6 +138,9 @@ func TestMarkdownAndReplaceSection(t *testing.T) {
 	if !strings.Contains(generated, "Show one item.\n\n### `tool show raw`") {
 		t.Fatalf("generated Markdown does not separate command sections:\n%s", generated)
 	}
+	if strings.Contains(generated, "\n\n\n") {
+		t.Fatalf("generated Markdown contains excess section spacing:\n%s", generated)
+	}
 	document := `before
 <!-- BEGIN GENERATED:cli -->
 old

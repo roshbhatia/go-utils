@@ -7,6 +7,5 @@
 {{.}}{{end}}{{if $section.Flags}}
 
 | Option | Description |
-| --- | --- |
-{{range $section.Flags}}| {{markdownFlagName .}} | {{markdownText .Description}} |
-{{end}}{{end}}{{end}}{{end}}
+| --- | --- |{{range $section.Flags}}
+| {{markdownFlagName .}} | {{markdownText .Description}} |{{end}}{{end}}{{end}}{{end}}
