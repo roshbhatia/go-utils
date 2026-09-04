@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -100,6 +101,19 @@ func TestTextRendersRuntimeHelpFromCommandMetadata(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Fatalf("Text() lacks %q:\n%s", want, got)
 		}
+	}
+}
+
+func TestGenerateDoesNotMutateCommandMetadata(t *testing.T) {
+	t.Parallel()
+
+	command := nestedCommand()
+	want := append([]Flag(nil), command.Flags...)
+	if _, err := Generate("bash", command); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(command.Flags, want) {
+		t.Fatalf("Generate() mutated flags: got %+v, want %+v", command.Flags, want)
 	}
 }
 

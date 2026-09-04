@@ -111,6 +111,7 @@ var completionTemplates = template.Must(template.New("completion").Funcs(templat
 }).ParseFS(completionTemplateFiles, "templates/*.tmpl"))
 
 func Generate(shell string, command Command) (string, error) {
+	command.Flags = append([]Flag(nil), command.Flags...)
 	sort.Slice(command.Flags, func(i, j int) bool {
 		return command.Flags[i].Name < command.Flags[j].Name
 	})
