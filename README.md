@@ -3,9 +3,10 @@
 Shared Go primitives for Roshan's terminal tools.
 
 - `agents`: reads the generated harness registry.
-- `completion`: generates contextual Bash, Zsh, Fish, and Nushell completions
-  and Markdown help from one nested command tree. `Command.Synopsis` supplies
-  short help, while `Command.LongDescription` supplies detailed help.
+- `completion`: generates contextual Bash, Zsh, Fish, and Nushell completions,
+  terminal help, and Markdown help from one nested command tree.
+  `Command.Synopsis` supplies short help, while `Command.LongDescription`
+  supplies detailed help.
   `CompletionCommand` adds newline-delimited runtime candidates to a command
   argument or flag. Shells preserve each line as data, including spaces and
   shell metacharacters. Generated completions suppress unmodeled filesystem

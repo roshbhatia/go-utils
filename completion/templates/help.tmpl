@@ -1,0 +1,11 @@
+{{define "help"}}{{if .LongDescription}}{{.LongDescription}}{{else}}{{.Description}}{{end}}
+
+Usage:
+  {{commandSynopsis .}}{{if .Subcommands}}
+
+Commands:
+{{range .Subcommands}}  {{.Name}}{{if .Description}}  {{.Description}}{{end}}
+{{end}}{{end}}{{if .Flags}}
+Options:
+{{range .Flags}}  {{textFlagName .}}{{if .Description}}  {{.Description}}{{end}}
+{{end}}{{end}}{{end}}

@@ -105,6 +105,7 @@ var completionTemplates = template.Must(template.New("completion").Funcs(templat
 	"quoteShell":       quoteShell,
 	"quoteValue":       quoteValue,
 	"setFunction":      setFunction,
+	"textFlagName":     textFlagName,
 	"zshText":          zshText,
 	"zshCommand":       zshCommand,
 }).ParseFS(completionTemplateFiles, "templates/*.tmpl"))
@@ -146,6 +147,11 @@ func Markdown(command Command) string {
 	return strings.TrimSpace(executeTemplate("markdown", sections)) + "\n"
 }
 
+// Text renders command metadata as terminal help.
+func Text(command Command) string {
+	return strings.TrimSpace(executeTemplate("help", command)) + "\n"
+}
+
 // ReplaceSection updates one generated Markdown section.
 func ReplaceSection(document, name, generated string) (string, error) {
 	start := "<!-- BEGIN GENERATED:" + name + " -->"
@@ -172,6 +178,17 @@ func markdownFlagName(flag Flag) string {
 	}
 	if flag.Value {
 		name += " `<value>`"
+	}
+	return name
+}
+
+func textFlagName(flag Flag) string {
+	name := "--" + flag.Name
+	if flag.Short != "" {
+		name = "-" + flag.Short + ", " + name
+	}
+	if flag.Value {
+		name += " <value>"
 	}
 	return name
 }

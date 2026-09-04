@@ -76,6 +76,33 @@ func TestGenerate(t *testing.T) {
 	}
 }
 
+func TestTextRendersRuntimeHelpFromCommandMetadata(t *testing.T) {
+	t.Parallel()
+
+	got := Text(Command{
+		Name:            "sample",
+		Description:     "Legacy summary.",
+		LongDescription: "Inspect current work.",
+		Synopsis:        "sample [--color] [name]",
+		Flags: []Flag{
+			{Name: "color", Short: "c", Description: "Select a color", Value: true},
+			{Name: "help", Short: "h", Description: "Print help"},
+		},
+		Subcommands: []Command{{Name: "inspect", Description: "Inspect one record"}},
+	})
+	for _, want := range []string{
+		"Inspect current work.",
+		"Usage:\n  sample [--color] [name]",
+		"Commands:\n  inspect  Inspect one record",
+		"Options:\n  -c, --color <value>  Select a color",
+		"  -h, --help  Print help",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("Text() lacks %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestZshCombinesRootSubcommandsWithPositionalCompletion(t *testing.T) {
 	generated, err := Generate("zsh", Command{
 		Name:              "sample",
