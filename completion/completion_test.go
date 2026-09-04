@@ -122,15 +122,18 @@ func TestGeneratedCompletionsParse(t *testing.T) {
 
 func TestMarkdownAndReplaceSection(t *testing.T) {
 	command := Command{
-		Name: "tool", Description: "Inspect work.",
+		Name: "tool", Description: "Legacy summary.", Synopsis: "Inspect work.", LongDescription: "Inspect current and historical work in one view.",
 		Flags:       []Flag{{Name: "json", Short: "j", Description: "Print JSON | YAML", Value: true}},
 		Subcommands: []Command{{Name: "show", Description: "Show one item.", Subcommands: []Command{{Name: "raw", Description: "Show raw data."}}}},
 	}
 	generated := Markdown(command)
-	for _, want := range []string{"### `tool`", "`--json`, `-j` `<value>`", "Print JSON \\| YAML", "### `tool show`", "### `tool show raw`"} {
+	for _, want := range []string{"### `tool`", "Inspect work.", "Inspect current and historical work in one view.", "`--json`, `-j` `<value>`", "Print JSON \\| YAML", "### `tool show`", "### `tool show raw`"} {
 		if !strings.Contains(generated, want) {
 			t.Fatalf("generated Markdown does not contain %q:\n%s", want, generated)
 		}
+	}
+	if strings.Contains(generated, "Legacy summary.") {
+		t.Fatalf("generated Markdown ignored the synopsis override:\n%s", generated)
 	}
 	document := `before
 <!-- BEGIN GENERATED:cli -->

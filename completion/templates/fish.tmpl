@@ -12,6 +12,6 @@ function __{{.Name}}_completion_context
 end
 {{range .Commands}}{{$command := . -}}
 {{range $command.Flags}}complete -c {{$.Name}} -n 'test (__{{$.Name}}_completion_context) = "{{$command.Context}}"' -l {{.Name}}{{with .Short}} -s {{.}}{{end}}{{if .Value}} -r{{end}}{{with .Values}} -a '{{join . " "}}'{{end}} -d '{{escapeFish .Description}}'
-{{end}}{{range $command.Children}}complete -c {{$.Name}} -n 'test (__{{$.Name}}_completion_context) = "{{$command.Context}}"' -a {{.Name}} -d '{{escapeFish .Description}}'
+{{end}}{{range $command.Children}}complete -c {{$.Name}} -n 'test (__{{$.Name}}_completion_context) = "{{$command.Context}}"' -a {{.Name}} -d '{{escapeFish (commandSynopsis .)}}'
 {{end}}{{if eq $command.Context "completion"}}complete -c {{$.Name}} -n 'test (__{{$.Name}}_completion_context) = "completion"' -a 'bash zsh fish nu'
 {{end}}{{end}}{{end}}

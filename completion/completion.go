@@ -19,10 +19,12 @@ type Flag struct {
 }
 
 type Command struct {
-	Name        string
-	Description string
-	Flags       []Flag
-	Subcommands []Command
+	Name            string
+	Description     string
+	Synopsis        string
+	LongDescription string
+	Flags           []Flag
+	Subcommands     []Command
 }
 
 type commandTemplateData struct {
@@ -55,9 +57,10 @@ type completionTemplateData struct {
 }
 
 type markdownSection struct {
-	Description string
-	Flags       []Flag
-	Invocation  string
+	Flags           []Flag
+	Invocation      string
+	LongDescription string
+	Synopsis        string
 }
 
 //go:embed templates/*.tmpl
@@ -65,6 +68,7 @@ var completionTemplateFiles embed.FS
 
 var completionTemplates = template.Must(template.New("completion").Funcs(template.FuncMap{
 	"escapeFish":       escapeFish,
+	"commandSynopsis":  commandSynopsis,
 	"join":             strings.Join,
 	"markdownFlagName": markdownFlagName,
 	"markdownText":     markdownText,
@@ -92,15 +96,17 @@ func Generate(shell string, command Command) (string, error) {
 // Markdown renders command metadata for a README generated section.
 func Markdown(command Command) string {
 	sections := []markdownSection{{
-		Description: command.Description,
-		Flags:       command.Flags,
-		Invocation:  command.Name,
+		Flags:           command.Flags,
+		Invocation:      command.Name,
+		LongDescription: command.LongDescription,
+		Synopsis:        commandSynopsis(command),
 	}}
 	walkCommands(command.Subcommands, func(path []string, subcommand Command) {
 		sections = append(sections, markdownSection{
-			Description: subcommand.Description,
-			Flags:       subcommand.Flags,
-			Invocation:  command.Name + " " + strings.Join(path, " "),
+			Flags:           subcommand.Flags,
+			Invocation:      command.Name + " " + strings.Join(path, " "),
+			LongDescription: subcommand.LongDescription,
+			Synopsis:        commandSynopsis(subcommand),
 		})
 	})
 	return strings.TrimSpace(executeTemplate("markdown", sections)) + "\n"
@@ -137,6 +143,13 @@ func markdownFlagName(flag Flag) string {
 }
 
 func markdownText(value string) string { return strings.ReplaceAll(value, "|", "\\|") }
+
+func commandSynopsis(command Command) string {
+	if command.Synopsis != "" {
+		return command.Synopsis
+	}
+	return command.Description
+}
 
 func walkCommands(commands []Command, visit func([]string, Command)) {
 	var walk func([]string, []Command)
