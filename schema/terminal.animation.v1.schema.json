@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roshbhatia.github.io/schemas/terminal.animation.v1.schema.json",
+  "$defs": {
+    "Animation": {
+      "properties": {
+        "full": {
+          "$ref": "#/$defs/Sequence"
+        },
+        "compact": {
+          "$ref": "#/$defs/Sequence"
+        },
+        "reduced_motion": {
+          "$ref": "#/$defs/Sequence"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "full",
+        "reduced_motion"
+      ]
+    },
+    "Dimensions": {
+      "properties": {
+        "width": {
+          "type": "integer",
+          "maximum": 512,
+          "minimum": 1
+        },
+        "height": {
+          "type": "integer",
+          "maximum": 256,
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "width",
+        "height"
+      ]
+    },
+    "Frame": {
+      "properties": {
+        "content": {
+          "type": "string"
+        },
+        "style": {
+          "type": "string",
+          "enum": [
+            "default",
+            "accent",
+            "muted",
+            "success",
+            "warning",
+            "danger"
+          ]
+        },
+        "duration_ms": {
+          "type": "integer",
+          "maximum": 10000,
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "content",
+        "style"
+      ]
+    },
+    "Sequence": {
+      "properties": {
+        "dimensions": {
+          "$ref": "#/$defs/Dimensions"
+        },
+        "playback": {
+          "type": "string",
+          "enum": [
+            "once",
+            "loop",
+            "ping_pong"
+          ]
+        },
+        "easing": {
+          "type": "string",
+          "enum": [
+            "linear",
+            "ease_in",
+            "ease_out",
+            "ease_in_out"
+          ]
+        },
+        "fps": {
+          "type": "integer",
+          "maximum": 60,
+          "minimum": 1
+        },
+        "frames": {
+          "items": {
+            "$ref": "#/$defs/Frame"
+          },
+          "type": "array",
+          "maxItems": 512,
+          "minItems": 1
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "dimensions",
+        "playback",
+        "easing",
+        "frames"
+      ]
+    }
+  },
+  "properties": {
+    "version": {
+      "type": "string",
+      "enum": [
+        "terminal.animation/v1"
+      ]
+    },
+    "animations": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Animation"
+      },
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "type": "object",
+  "required": [
+    "version",
+    "animations"
+  ],
+  "title": "Renderer-neutral terminal animation"
+}

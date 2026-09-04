@@ -3,6 +3,7 @@
 Shared Go primitives for Roshan's terminal tools.
 
 - `agents`: reads the generated harness registry.
+- `animation`: validates and plays renderer-neutral terminal animations.
 - `completion`: generates contextual Bash, Zsh, Fish, and Nushell completions,
   terminal help, and Markdown help from one nested command tree.
   `Command.Synopsis` supplies short help, while `Command.LongDescription`
@@ -29,6 +30,28 @@ palette := ui.DefaultPalette()
 action, ok := ui.ActionFor(ui.Key{Name: "j"})
 frame := ui.ResolveLayout(160, 48, true)
 ```
+
+The `animation` package implements `terminal.animation/v1`. Each sequence uses
+either `fps` or a `duration_ms` on every frame. Frames contain full text and a
+semantic style role. Rendering pads all frames to stable display-cell
+dimensions. Compact variants are optional. Each animation has one static
+reduced-motion frame.
+
+FPS timing uses `ceil(1000 / fps)` milliseconds per frame. Per-frame timing
+requires `duration_ms` on every frame. `ping_pong` does not repeat endpoints.
+Easing changes the reported progress within a frame, not frame selection.
+
+```go
+config, err := animation.ParseYAML(source)
+if err != nil {
+	return err
+}
+sequence, ok := config.Select("loading", animation.Preferences{Compact: narrow})
+frame := sequence.Render(elapsed.Milliseconds())
+```
+
+Generate the checked JSON Schema with
+`go run ./internal/cmd/animation-schema`.
 
 Provider manifests use the neutral `provider/v1` contract. An action renders
 each argument and environment value as an independent Go template. The runtime

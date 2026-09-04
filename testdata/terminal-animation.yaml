@@ -1,0 +1,40 @@
+version: terminal.animation/v1
+animations:
+  loading:
+    full:
+      dimensions:
+        width: 4
+        height: 2
+      playback: ping_pong
+      easing: ease_in
+      fps: 10
+      frames:
+        - content: a
+          style: accent
+        - content: bb
+          style: accent
+        - content: ccc
+          style: accent
+    compact:
+      dimensions:
+        width: 1
+        height: 1
+      playback: loop
+      easing: linear
+      frames:
+        - content: "|"
+          style: muted
+          duration_ms: 80
+        - content: /
+          style: muted
+          duration_ms: 120
+    reduced_motion:
+      dimensions:
+        width: 4
+        height: 1
+      playback: once
+      easing: linear
+      frames:
+        - content: done
+          style: muted
+          duration_ms: 1000

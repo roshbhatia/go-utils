@@ -77,6 +77,7 @@
               export GO_UTILS_REQUIRE_COMPLETION_SHELLS=1
               go vet ./...
               go test -race ./...
+              go run ./internal/cmd/animation-schema --check
               go run ./internal/cmd/provider-schema --check
               cue vet schema/provider.cue
               runHook postCheck
