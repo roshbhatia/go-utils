@@ -27,6 +27,8 @@ import "time"
 #Defaults: close({
 	timeout?:  time.Duration
 	priority?: int
+	model?:    string & !="" & !="default" & !="light"
+	light?:    string & !="" & !="default" & !="light"
 })
 
 #Request: close({

@@ -74,9 +74,47 @@ type Requirements struct {
 }
 
 // Defaults contains provider-wide execution policy.
+//
+// Model and Light name the provider's models for a caller that does not pick
+// one. Model is what a plain request runs; Light is the cheap model for bulk
+// work such as summarizing a file, where the round trip should cost less than
+// reading it. Both are opaque to this package: a provider names them, a caller
+// selects one by role, and the provider's own command reads the id.
 type Defaults struct {
 	Timeout  Duration `json:"timeout,omitempty" yaml:"timeout,omitempty"`
 	Priority int      `json:"priority,omitempty" yaml:"priority,omitempty"`
+	Model    string   `json:"model,omitempty" yaml:"model,omitempty"`
+	Light    string   `json:"light,omitempty" yaml:"light,omitempty"`
+}
+
+// ModelRole selects one of a provider's declared models.
+type ModelRole string
+
+const (
+	// RoleDefault is the model a plain request runs.
+	RoleDefault ModelRole = "default"
+	// RoleLight is the cheap model for bulk work.
+	RoleLight ModelRole = "light"
+)
+
+// ResolveModel maps a requested model onto the provider's declaration. The
+// role words "default" and "light" resolve through Defaults; any other value is
+// a literal model id and is returned unchanged. An empty request resolves to
+// Defaults.Model, which may itself be empty when the provider names none.
+// A role the provider does not declare is an error rather than a silent fall
+// back to a heavier model.
+func (m Manifest) ResolveModel(requested string) (string, error) {
+	switch ModelRole(requested) {
+	case "", RoleDefault:
+		return m.Defaults.Model, nil
+	case RoleLight:
+		if m.Defaults.Light == "" {
+			return "", fmt.Errorf("provider %q declares no light model", m.Name)
+		}
+		return m.Defaults.Light, nil
+	default:
+		return requested, nil
+	}
 }
 
 // Validate checks the manifest without inspecting the host environment.
@@ -117,6 +155,14 @@ func (m Manifest) Validate() error {
 	}
 	if m.Defaults.Timeout.Duration() < 0 {
 		problems = append(problems, errors.New("defaults.timeout must not be negative"))
+	}
+	for name, value := range map[string]string{"model": m.Defaults.Model, "light": m.Defaults.Light} {
+		if value != "" && strings.TrimSpace(value) == "" {
+			problems = append(problems, fmt.Errorf("defaults.%s must not be blank", name))
+		}
+		if ModelRole(value) == RoleDefault || ModelRole(value) == RoleLight {
+			problems = append(problems, fmt.Errorf("defaults.%s must be a model id, not the role word %q", name, value))
+		}
 	}
 	for _, name := range m.Requires.Commands {
 		if strings.TrimSpace(name) == "" {

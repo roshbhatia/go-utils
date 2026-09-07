@@ -58,6 +58,13 @@ each argument and environment value as an independent Go template. The runtime
 then executes the declared argv directly and exchanges bounded JSONL request,
 event, and result frames over standard input and output.
 
+A manifest's `defaults` may name the provider's models: `model` for a plain
+request and `light` for bulk work where the round trip should cost less than
+the text it reads. `Manifest.ResolveModel` maps the role words `default` and
+`light` onto those ids and passes any other value through as a literal model
+id; asking for a light model the provider does not declare is an error, never
+a silent fallback to the heavier one.
+
 ## Development
 
 ```bash

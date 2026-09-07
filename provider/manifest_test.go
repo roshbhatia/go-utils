@@ -123,3 +123,32 @@ func TestSchemaIsDeterministic(t *testing.T) {
 		}
 	}
 }
+
+func TestResolveModelUsesDeclaredRoles(t *testing.T) {
+	manifest := Manifest{Name: "sample", Defaults: Defaults{Model: "big", Light: "small"}}
+	for requested, want := range map[string]string{"": "big", "default": "big", "light": "small", "other-id": "other-id"} {
+		got, err := manifest.ResolveModel(requested)
+		if err != nil || got != want {
+			t.Fatalf("ResolveModel(%q) = %q, %v; want %q", requested, got, err, want)
+		}
+	}
+	bare := Manifest{Name: "bare"}
+	if got, err := bare.ResolveModel(""); err != nil || got != "" {
+		t.Fatalf("a provider with no default resolved to %q, %v", got, err)
+	}
+	if _, err := bare.ResolveModel("light"); err == nil {
+		t.Fatal("a provider with no light model resolved a light request")
+	}
+}
+
+func TestValidateRejectsRoleWordsAsModelIDs(t *testing.T) {
+	manifest := Manifest{
+		Version: Version, Name: "sample", Description: "d", Command: []string{"x"},
+		Actions:  map[string]Action{"a": {Description: "d"}},
+		Defaults: Defaults{Model: "light", Light: "  "},
+	}
+	err := manifest.Validate()
+	if err == nil || !strings.Contains(err.Error(), "role word") || !strings.Contains(err.Error(), "blank") {
+		t.Fatalf("Validate = %v", err)
+	}
+}
