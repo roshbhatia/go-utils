@@ -11,6 +11,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/invopop/jsonschema"
 )
 
 const Version = "provider/v1"
@@ -40,6 +42,16 @@ func (d Duration) Duration() time.Duration { return time.Duration(d) }
 
 func (d Duration) MarshalText() ([]byte, error) {
 	return []byte(time.Duration(d).String()), nil
+}
+
+// JSONSchema keeps a reflected Duration a string in the spec grammar. Without it
+// a consumer's config schema exports the underlying integer.
+func (Duration) JSONSchema() *jsonschema.Schema {
+	return &jsonschema.Schema{
+		Type:        "string",
+		Pattern:     durationPattern.String(),
+		Description: "Go duration such as 500ms, 10s, 1h30m, or 1.5s",
+	}
 }
 
 func (d *Duration) UnmarshalText(value []byte) error {
