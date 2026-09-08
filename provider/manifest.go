@@ -5,24 +5,35 @@
 package provider
 
 import (
-	"encoding/json"
+	_ "embed"
 	"errors"
 	"fmt"
 	"regexp"
 	"strings"
 	"time"
-
-	"github.com/invopop/jsonschema"
 )
 
 const Version = "provider/v1"
 
+// SpecVersion is the provider-spec release the embedded schema was copied from.
+var SpecVersion = strings.TrimSpace(specVersion)
+
 var (
-	namePattern = regexp.MustCompile(`^[a-z][a-z0-9._-]*$`)
-	envPattern  = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+	//go:embed spec/provider.schema.json
+	specSchema []byte
+	//go:embed spec/VERSION
+	specVersion string
 )
 
-// Duration is a human-readable duration in a provider manifest.
+var (
+	namePattern     = regexp.MustCompile(`^[a-z][a-z0-9._-]*$`)
+	envPattern      = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+	durationPattern = regexp.MustCompile(`^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$`)
+)
+
+// Duration is a human-readable duration in a provider manifest. Its text form
+// is the spec's Duration grammar, a strict subset of time.ParseDuration: no
+// sign, no bare number, no leading or trailing dot.
 type Duration time.Duration
 
 func (d Duration) Duration() time.Duration { return time.Duration(d) }
@@ -32,6 +43,9 @@ func (d Duration) MarshalText() ([]byte, error) {
 }
 
 func (d *Duration) UnmarshalText(value []byte) error {
+	if !durationPattern.MatchString(string(value)) {
+		return fmt.Errorf("duration %q must match %s", value, durationPattern)
+	}
 	parsed, err := time.ParseDuration(string(value))
 	if err != nil {
 		return err
@@ -40,20 +54,16 @@ func (d *Duration) UnmarshalText(value []byte) error {
 	return nil
 }
 
-func (Duration) JSONSchema() *jsonschema.Schema {
-	return &jsonschema.Schema{
-		Type:        "string",
-		Pattern:     `^[0-9]+(ns|us|µs|ms|s|m|h)$`,
-		Description: "Go duration such as 500ms, 10s, or 2m",
-	}
-}
-
 // Manifest describes one external provider and the actions it implements.
+//
+// Kind is an opaque classification. This package only checks its grammar; a
+// consumer narrows it to its own set.
 type Manifest struct {
-	Version     string            `json:"version" yaml:"version" jsonschema:"enum=provider/v1"`
-	Name        string            `json:"name" yaml:"name" jsonschema:"pattern=^[a-z][a-z0-9._-]*$"`
+	Version     string            `json:"version" yaml:"version"`
+	Kind        string            `json:"kind,omitempty" yaml:"kind,omitempty"`
+	Name        string            `json:"name" yaml:"name"`
 	Description string            `json:"description" yaml:"description"`
-	Command     []string          `json:"command" yaml:"command" jsonschema:"minItems=1"`
+	Command     []string          `json:"command" yaml:"command"`
 	Actions     map[string]Action `json:"actions" yaml:"actions"`
 	Requires    Requirements      `json:"requires,omitempty" yaml:"requires,omitempty"`
 	Defaults    Defaults          `json:"defaults,omitempty" yaml:"defaults,omitempty"`
@@ -123,6 +133,9 @@ func (m Manifest) Validate() error {
 	if m.Version != Version {
 		problems = append(problems, fmt.Errorf("version must be %q", Version))
 	}
+	if m.Kind != "" && !namePattern.MatchString(m.Kind) {
+		problems = append(problems, errors.New("kind must match ^[a-z][a-z0-9._-]*$"))
+	}
 	if !namePattern.MatchString(m.Name) {
 		problems = append(problems, errors.New("name must match ^[a-z][a-z0-9._-]*$"))
 	}
@@ -182,14 +195,8 @@ func (m Manifest) Validate() error {
 	return errors.Join(problems...)
 }
 
-// Schema returns the provider manifest JSON Schema.
+// Schema returns the provider manifest JSON Schema, byte for byte as
+// provider-spec publishes it at SpecVersion.
 func Schema() ([]byte, error) {
-	reflector := jsonschema.Reflector{Anonymous: true, ExpandedStruct: true}
-	schema := reflector.Reflect(new(Manifest))
-	schema.Title = "External provider manifest"
-	data, err := json.MarshalIndent(schema, "", "  ")
-	if err != nil {
-		return nil, fmt.Errorf("encode provider schema: %w", err)
-	}
-	return append(data, '\n'), nil
+	return append([]byte(nil), specSchema...), nil
 }

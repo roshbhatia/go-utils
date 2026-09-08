@@ -1,0 +1,9 @@
+version: provider/v1
+name: example
+description: Role words are not model ids
+command: [example]
+defaults:
+  model: light
+actions:
+  run:
+    description: Run

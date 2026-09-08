@@ -152,3 +152,25 @@ func TestValidateRejectsRoleWordsAsModelIDs(t *testing.T) {
 		t.Fatalf("Validate = %v", err)
 	}
 }
+
+func TestDurationTextIsSpecGrammar(t *testing.T) {
+	for text, want := range map[string]time.Duration{
+		"500ms":       500 * time.Millisecond,
+		"1h30m":       90 * time.Minute,
+		"1.5s":        1500 * time.Millisecond,
+		"1h30m15.25s": 90*time.Minute + 15250*time.Millisecond,
+		"0s":          0,
+	} {
+		var got Duration
+		if err := got.UnmarshalText([]byte(text)); err != nil || got.Duration() != want {
+			t.Errorf("UnmarshalText(%q) = %v, %v; want %v", text, got.Duration(), err, want)
+		}
+	}
+	// time.ParseDuration accepts every one of these; the spec grammar does not.
+	for _, text := range []string{"0", "-1s", "+1s", ".5s", "1.s"} {
+		var got Duration
+		if err := got.UnmarshalText([]byte(text)); err == nil {
+			t.Errorf("UnmarshalText(%q) accepted a duration outside the spec grammar", text)
+		}
+	}
+}

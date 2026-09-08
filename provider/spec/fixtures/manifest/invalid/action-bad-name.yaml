@@ -1,0 +1,7 @@
+version: provider/v1
+name: example
+description: Action names follow the name grammar
+command: [example]
+actions:
+  Run Now:
+    description: Run

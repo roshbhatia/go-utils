@@ -1,0 +1,9 @@
+version: provider/v1
+name: duration
+description: Timeout must be a string, not a YAML number
+command: [example]
+defaults:
+  timeout: 30
+actions:
+  run:
+    description: Run

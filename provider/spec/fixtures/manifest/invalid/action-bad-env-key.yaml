@@ -1,0 +1,9 @@
+version: provider/v1
+name: example
+description: Environment keys are POSIX names
+command: [example]
+actions:
+  run:
+    description: Run
+    env:
+      BAD-KEY: value
