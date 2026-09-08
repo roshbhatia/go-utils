@@ -60,10 +60,20 @@ frame := sequence.Render(elapsed.Milliseconds())
 Generate the checked JSON Schema with
 `go run ./internal/cmd/animation-schema`.
 
-Provider manifests use the neutral `provider/v1` contract. An action renders
-each argument and environment value as an independent Go template. The runtime
-then executes the declared argv directly and exchanges bounded JSONL request,
-event, and result frames over standard input and output.
+Provider manifests use the neutral `provider/v1` contract that
+[provider-spec](https://github.com/roshbhatia/provider-spec) publishes.
+`provider/spec/` is a copy of one pinned release: its JSON Schema, `VERSION`,
+and manifest fixtures. `provider.Schema()` returns that schema byte for byte
+and `provider.SpecVersion` names the release. `nix flake check` fails when the
+copy differs from the `provider-spec` flake input, and the conformance test
+holds `Decode` to the fixtures. To bump the spec, update the input URL, copy
+the three paths again, and commit them together.
+
+An action renders each argument and environment value as an independent Go
+template. The runtime then executes the declared argv directly and exchanges
+bounded JSONL request, event, and result frames over standard input and
+output. Durations follow the spec grammar, a strict subset of Go's
+`time.ParseDuration`: `1h30m` and `1.5s` parse, `0`, `-1s`, and `.5s` do not.
 
 A manifest's `defaults` may name the provider's models: `model` for a plain
 request and `light` for bulk work where the round trip should cost less than
