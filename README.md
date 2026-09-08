@@ -21,8 +21,13 @@ Shared Go primitives for Roshan's terminal tools.
 - `git`: runs Git with inherited repository state removed.
 - `keymap`: validates key catalogs and generates hints and help rows.
 - `panes`: resolves pointer hits and directional focus between pane rectangles.
-- `paths`: reads generated XDG path manifests.
+- `paths`: reads generated XDG path manifests and derives per-repository
+  keyed paths.
 - `provider`: discovers and invokes shell-independent external providers.
+- `store`: publishes files atomically through a renamed temporary file.
+  `Store` adds a lock directory, a validator, and fsync for durable state;
+  `Write` and `Symlink` serve cheap hook-side state. `Clean`, `OneLine`, and
+  `HasControlBytes` scrub control runes before they reach a store.
 - `ui`: defines terminal colors, keys, layout, status, and themes.
 - `terminal`: detects TTY capabilities and filters terminal control replies.
 - `workspace`: finds the active workspace and its repositories.
