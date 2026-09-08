@@ -1,0 +1,28 @@
+version: provider/v1
+kind: source
+name: claude
+description: Read Claude Code transcript activity and directory sessions
+command: [traces-provider-claude, --json]
+requires:
+  commands: [jq]
+  environment: [HOME]
+  paths: [.claude]
+defaults:
+  timeout: 2m
+  priority: 100
+  model: claude-opus-5
+  light: claude-haiku-4-5-20251001
+actions:
+  activity.read:
+    description: Read activity inside a time and session window
+    argv:
+      - --since
+      - "{{ .Since }}"
+      - --directory
+      - "{{ .Directory }}"
+    env:
+      TRACES_DIRECTORY: "{{ .Directory }}"
+      _SESSION: "{{ .Session }}"
+  session.current:
+    description: Read the current session from its environment
+    argv: [--action, current]

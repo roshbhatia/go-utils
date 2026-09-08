@@ -1,0 +1,9 @@
+version: provider/v1
+name: example
+description: Priority is an integer
+command: [example]
+defaults:
+  priority: high
+actions:
+  run:
+    description: Run

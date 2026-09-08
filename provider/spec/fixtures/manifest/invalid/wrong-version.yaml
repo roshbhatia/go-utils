@@ -1,0 +1,7 @@
+version: provider/v2
+name: example
+description: Version is not provider/v1
+command: [example]
+actions:
+  run:
+    description: Run

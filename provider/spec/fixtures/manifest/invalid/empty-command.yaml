@@ -1,0 +1,7 @@
+version: provider/v1
+name: example
+description: Command needs an executable
+command: []
+actions:
+  run:
+    description: Run

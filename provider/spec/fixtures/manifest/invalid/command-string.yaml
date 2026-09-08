@@ -1,0 +1,7 @@
+version: provider/v1
+name: example
+description: Command must be an array, not a shell string
+command: example --flag
+actions:
+  run:
+    description: Run
