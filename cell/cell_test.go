@@ -36,6 +36,11 @@ func TestFitProducesExactWidths(t *testing.T) {
 		{name: "left pad", got: Fit("ab", 4), want: "ab  "},
 		{name: "right pad", got: RightFit("ab", 4), want: "  ab"},
 		{name: "truncate", got: Fit("abcdef", 4), want: "abc…"},
+		{name: "right truncate", got: RightFit("abcdef", 4), want: "abc…"},
+		{name: "ASCII tail", got: Fit("abcdef", 5, "..."), want: "ab..."},
+		{name: "right ASCII tail", got: RightFit("abcdef", 5, "..."), want: "ab..."},
+		{name: "wide rune ASCII tail", got: Fit("界界界", 5, "..."), want: "界..."},
+		{name: "ANSI ASCII tail", got: Fit("\x1b[31mabcdef\x1b[0m", 5, "..."), want: "\x1b[31mab...\x1b[0m"},
 		{name: "zero", got: Fit("abcdef", 0), want: ""},
 	} {
 		if test.got != test.want {
@@ -58,6 +63,15 @@ func TestClipWord(t *testing.T) {
 	}
 	if got := ClipWord("\x1b[31malpha beta gamma\x1b[0m", 11); Width(got) != 11 || !strings.Contains(got, "\x1b[0m") {
 		t.Fatalf("ClipWord(ANSI) = %q at width %d", got, Width(got))
+	}
+	if got := ClipWord("alpha beta gamma", 13, "..."); got != "alpha beta..." {
+		t.Fatalf("ClipWord(ASCII tail) = %q", got)
+	}
+	if got := ClipWord("\x1b[31malpha beta gamma\x1b[0m", 13, "..."); Width(got) != 13 || !strings.HasSuffix(got, "...") || !strings.Contains(got, "\x1b[0m") {
+		t.Fatalf("ClipWord(ANSI ASCII tail) = %q at width %d", got, Width(got))
+	}
+	if got := ClipWord("界界界界", 7, "..."); got != "界界..." || Width(got) != 7 {
+		t.Fatalf("ClipWord(wide ASCII tail) = %q at width %d", got, Width(got))
 	}
 }
 

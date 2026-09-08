@@ -31,21 +31,21 @@ func Truncate(value string, width int, tail ...string) string {
 	return ansi.Truncate(value, width, suffix)
 }
 
-// Fit truncates or right-pads value to exactly width terminal cells.
-func Fit(value string, width int) string {
-	return fit(value, width, false)
+// Fit truncates with an optional tail or right-pads value to exactly width terminal cells.
+func Fit(value string, width int, tail ...string) string {
+	return fit(value, width, false, tail...)
 }
 
-// RightFit truncates or left-pads value to exactly width terminal cells.
-func RightFit(value string, width int) string {
-	return fit(value, width, true)
+// RightFit truncates with an optional tail or left-pads value to exactly width terminal cells.
+func RightFit(value string, width int, tail ...string) string {
+	return fit(value, width, true, tail...)
 }
 
-func fit(value string, width int, right bool) string {
+func fit(value string, width int, right bool, tail ...string) string {
 	if width < 1 {
 		return ""
 	}
-	value = Truncate(value, width)
+	value = Truncate(value, width, tail...)
 	padding := max(0, width-Width(value))
 	if right {
 		return strings.Repeat(" ", padding) + value
@@ -54,14 +54,22 @@ func fit(value string, width int, right bool) string {
 }
 
 // ClipWord prefers a useful word boundary and clips a long first word when needed.
-func ClipWord(value string, width int) string {
+// The optional tail replaces the default Unicode ellipsis.
+func ClipWord(value string, width int, tail ...string) string {
 	if width < 1 {
 		return ""
 	}
 	if Width(value) <= width {
 		return value
 	}
-	budget := width - Width(Ellipsis)
+	suffix := Ellipsis
+	if len(tail) > 0 {
+		suffix = tail[0]
+	}
+	if Width(suffix) > width {
+		suffix = ansi.Truncate(suffix, width, "")
+	}
+	budget := width - Width(suffix)
 	if budget < 1 {
 		return Truncate(value, width, "")
 	}
@@ -71,7 +79,7 @@ func ClipWord(value string, width int) string {
 		visible = visible[:cut]
 	}
 	head = Truncate(value, Width(strings.TrimRight(visible, " \t")), "")
-	return head + Ellipsis
+	return head + suffix
 }
 
 // OneLine normalizes whitespace and text controls while preserving ANSI sequences.

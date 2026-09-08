@@ -5,6 +5,8 @@ Shared Go primitives for Roshan's terminal tools.
 - `agents`: reads the generated harness registry.
 - `animation`: validates and plays renderer-neutral terminal animations.
 - `cell`: measures, truncates, and fits ANSI-styled terminal cells.
+  `Truncate`, `Fit`, `RightFit`, and `ClipWord` accept an optional tail such as
+  `"..."`; omitted tails use the Unicode ellipsis.
 - `completion`: generates contextual Bash, Zsh, Fish, and Nushell completions,
   terminal help, and Markdown help from one nested command tree.
   `Command.Synopsis` supplies short help, while `Command.LongDescription`
