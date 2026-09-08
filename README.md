@@ -4,6 +4,7 @@ Shared Go primitives for Roshan's terminal tools.
 
 - `agents`: reads the generated harness registry.
 - `animation`: validates and plays renderer-neutral terminal animations.
+- `cell`: measures, truncates, and fits ANSI-styled terminal cells.
 - `completion`: generates contextual Bash, Zsh, Fish, and Nushell completions,
   terminal help, and Markdown help from one nested command tree.
   `Command.Synopsis` supplies short help, while `Command.LongDescription`
@@ -16,10 +17,14 @@ Shared Go primitives for Roshan's terminal tools.
 - `config`: loads typed YAML, applies environment overrides, and emits JSON Schema.
 - `diffview`: renders multi-repository diffs as symbol and call trees.
 - `git`: runs Git with inherited repository state removed.
+- `keymap`: validates key catalogs and generates hints and help rows.
+- `panes`: resolves pointer hits and directional focus between pane rectangles.
 - `paths`: reads generated XDG path manifests.
 - `provider`: discovers and invokes shell-independent external providers.
 - `ui`: defines terminal colors, keys, layout, status, and themes.
+- `terminal`: detects TTY capabilities and filters terminal control replies.
 - `workspace`: finds the active workspace and its repositories.
+- `xdg`: resolves strict absolute XDG base directories.
 
 The `ui` package holds renderer-independent theme, status, navigation, and
 layout contracts. Bubble Tea, OpenTUI, and plain terminal clients can map these

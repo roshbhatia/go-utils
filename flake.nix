@@ -41,7 +41,7 @@
         {
           default = pkgs.stdenvNoCC.mkDerivation {
             pname = "go-utils";
-            version = "0.1.0";
+            version = "0.10.0";
             src = ./.;
             installPhase = ''
               runHook preInstall
@@ -63,7 +63,7 @@
             pname = "go-utils-test";
             version = "0";
             src = ./.;
-            vendorHash = "sha256-CSP6mGPQQf8VCiHKPNdYMr/+HhUJjvO3eM6UE04OzwE=";
+            vendorHash = "sha256-5w+8gjVQ6duD6B6O8TqjOmeVPDrXJBiieMIxIfR62YU=";
             nativeCheckInputs = [
               pkgs.bashInteractive
               pkgs.cue

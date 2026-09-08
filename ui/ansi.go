@@ -6,6 +6,8 @@ package ui
 import (
 	"fmt"
 	"os"
+
+	"github.com/roshbhatia/go-utils/terminal"
 )
 
 // ANSI 256 color codes.
@@ -28,18 +30,8 @@ var (
 )
 
 func init() {
-	noColor := os.Getenv("NO_COLOR") != ""
-	colorsEnabled = isTTY(os.Stderr) && !noColor
-	stdoutColorsEnabled = isTTY(os.Stdout) && !noColor
-}
-
-// isTTY reports whether f is a terminal.
-func isTTY(f *os.File) bool {
-	info, err := f.Stat()
-	if err != nil {
-		return false
-	}
-	return info.Mode()&os.ModeCharDevice != 0
+	colorsEnabled = terminal.ColorsEnabled(os.Stderr)
+	stdoutColorsEnabled = terminal.ColorsEnabled(os.Stdout)
 }
 
 // IsTTY reports whether stderr is a terminal.

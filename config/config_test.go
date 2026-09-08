@@ -70,14 +70,54 @@ func TestPathUsesXDGConfigHome(t *testing.T) {
 }
 
 func TestPathIgnoresRelativeXDGConfigHome(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", "relative")
 
 	got, err := Path(Options{Name: "test-tool"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if filepath.IsAbs(got) == false {
-		t.Fatalf("path = %q, want absolute fallback", got)
+	want := filepath.Join(home, ".config", "test-tool", "config.yaml")
+	if got != want {
+		t.Fatalf("path = %q, want %q", got, want)
+	}
+}
+
+func TestPathResolvesRelativeExplicitPath(t *testing.T) {
+	got, err := Path(Options{Name: "test-tool", Path: "config.yaml"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := filepath.Abs("config.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Fatalf("path = %q, want %q", got, want)
+	}
+}
+
+func TestPathResolvesRelativeEnvironmentOverride(t *testing.T) {
+	t.Setenv("TEST_TOOL_CONFIG", "config.yaml")
+	got, err := Path(Options{Name: "test-tool", EnvPrefix: "TEST_TOOL"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := filepath.Abs("config.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Fatalf("path = %q, want %q", got, want)
+	}
+}
+
+func TestPathRejectsInvalidNames(t *testing.T) {
+	for _, name := range []string{"", " ", ".", "..", " ask", "ask ", "../other", `one\two`, "one/two"} {
+		if _, err := Path(Options{Name: name}); err == nil {
+			t.Errorf("config name %q was accepted", name)
+		}
 	}
 }
 

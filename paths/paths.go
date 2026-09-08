@@ -2,9 +2,11 @@ package paths
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
+
+	"github.com/roshbhatia/go-utils/xdg"
 )
 
 const (
@@ -25,25 +27,38 @@ type document struct {
 	Paths map[string]string `json:"paths"`
 }
 
-func manifestFile() string {
+func manifestFile() (string, error) {
 	if override := os.Getenv("SYSINIT_PATHS_MANIFEST"); override != "" {
-		return override
+		if !filepath.IsAbs(override) {
+			return "", fmt.Errorf("SYSINIT_PATHS_MANIFEST must be absolute: %q", override)
+		}
+		return filepath.Clean(override), nil
 	}
-	return filepath.Join(fallbackStateHome(), "sysinit", "paths.json")
+	state, err := StateHomeE()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(state, "sysinit", "paths.json"), nil
 }
 
-func fallbackStateHome() string { return StateHome() }
-
-func StateHome() string {
-	if home := strings.TrimRight(os.Getenv("XDG_STATE_HOME"), "/"); home != "" {
+func fallbackStateHome() string {
+	if home, err := StateHomeE(); err == nil {
 		return home
 	}
 	return filepath.Join(home(), ".local", "state")
 }
 
+func StateHomeE() (string, error) { return xdg.StateHome() }
+
+func StateHome() string {
+	return fallbackStateHome()
+}
+
+func ConfigHomeE() (string, error) { return xdg.ConfigHome() }
+
 func ConfigHome() string {
-	if dir := strings.TrimRight(os.Getenv("XDG_CONFIG_HOME"), "/"); dir != "" {
-		return dir
+	if root, err := ConfigHomeE(); err == nil {
+		return root
 	}
 	return filepath.Join(home(), ".config")
 }
@@ -59,24 +74,43 @@ func home() string {
 	return dir
 }
 
-func load() map[string]string {
-	raw, err := os.ReadFile(manifestFile())
+func load() (map[string]string, error) {
+	manifest, err := manifestFile()
 	if err != nil {
-		return nil
+		return nil, err
+	}
+	raw, err := os.ReadFile(manifest)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("read paths manifest: %w", err)
 	}
 	var doc document
 	if err := json.Unmarshal(raw, &doc); err != nil {
-		return nil
+		return nil, fmt.Errorf("decode paths manifest: %w", err)
 	}
-	return doc.Paths
+	return doc.Paths, nil
+}
+
+func GetE(key string) (string, bool, error) {
+	values, err := load()
+	if err != nil {
+		return "", false, err
+	}
+	value, ok := values[key]
+	if !ok || value == "" {
+		return "", false, nil
+	}
+	if !filepath.IsAbs(value) {
+		return "", false, fmt.Errorf("path %q must be absolute: %q", key, value)
+	}
+	return filepath.Clean(value), true, nil
 }
 
 func Get(key string) (string, bool) {
-	value, ok := load()[key]
-	if !ok || value == "" {
-		return "", false
-	}
-	return strings.TrimRight(value, "/"), true
+	value, ok, err := GetE(key)
+	return value, ok && err == nil
 }
 
 func SeshySessions() string {

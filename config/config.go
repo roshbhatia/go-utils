@@ -9,12 +9,12 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"runtime"
 	"strings"
 	"time"
 	"unicode"
 
 	"github.com/invopop/jsonschema"
+	"github.com/roshbhatia/go-utils/xdg"
 	"go.yaml.in/yaml/v3"
 )
 
@@ -64,41 +64,39 @@ func Schema[T any](title string) ([]byte, error) {
 }
 
 func resolvePath(options Options) (string, error) {
-	if options.Name == "" {
+	if strings.TrimSpace(options.Name) == "" {
 		return "", errors.New("config name is required")
 	}
+	if strings.TrimSpace(options.Name) != options.Name || options.Name == "." || options.Name == ".." ||
+		filepath.IsAbs(options.Name) || filepath.Clean(options.Name) != options.Name || strings.ContainsAny(options.Name, `/\`) {
+		return "", fmt.Errorf("config name must be one path component: %q", options.Name)
+	}
 	if options.Path != "" {
-		return filepath.Clean(options.Path), nil
+		return absolutePath("config path", options.Path)
 	}
 	prefix := strings.TrimSpace(options.EnvPrefix)
 	if prefix != "" {
 		if override := strings.TrimSpace(os.Getenv(prefix + "_CONFIG")); override != "" {
-			return filepath.Clean(override), nil
+			return absolutePath(prefix+"_CONFIG", override)
 		}
 	}
-	root, err := configRoot()
+	root, err := xdg.ConfigHome()
 	if err != nil {
 		return "", err
 	}
 	return filepath.Join(root, options.Name, "config.yaml"), nil
 }
 
-func configRoot() (string, error) {
-	if root := strings.TrimSpace(os.Getenv("XDG_CONFIG_HOME")); filepath.IsAbs(root) {
-		return filepath.Clean(root), nil
+func absolutePath(name, value string) (string, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", fmt.Errorf("%s is required", name)
 	}
-	if runtime.GOOS == "windows" {
-		root, err := os.UserConfigDir()
-		if err != nil {
-			return "", fmt.Errorf("find user config directory: %w", err)
-		}
-		return root, nil
-	}
-	home, err := os.UserHomeDir()
+	absolute, err := filepath.Abs(value)
 	if err != nil {
-		return "", fmt.Errorf("find user home directory: %w", err)
+		return "", fmt.Errorf("resolve %s: %w", name, err)
 	}
-	return filepath.Join(home, ".config"), nil
+	return filepath.Clean(absolute), nil
 }
 
 func applyEnvironment(target reflect.Value, prefix string) error {
