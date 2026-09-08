@@ -1,0 +1,6 @@
+name: example
+description: Version is required
+command: [example]
+actions:
+  run:
+    description: Run

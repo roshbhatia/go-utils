@@ -1,0 +1,7 @@
+version: provider/v1
+name: example
+description: Action descriptions are required and non-empty
+command: [example]
+actions:
+  run:
+    description: ""

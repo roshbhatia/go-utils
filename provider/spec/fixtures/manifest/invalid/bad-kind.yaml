@@ -1,0 +1,8 @@
+version: provider/v1
+kind: Harness
+name: example
+description: Kind follows the name grammar
+command: [example]
+actions:
+  run:
+    description: Run

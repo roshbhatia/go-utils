@@ -1,0 +1,7 @@
+version: provider/v1
+name: example
+description: Command arguments must not be empty
+command: [example, ""]
+actions:
+  run:
+    description: Run

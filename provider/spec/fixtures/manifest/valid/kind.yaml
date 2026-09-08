@@ -1,0 +1,8 @@
+version: provider/v1
+kind: harness.local-1
+name: example.kind
+description: Manifest that declares an opaque kind
+command: [example]
+actions:
+  run:
+    description: Run

@@ -1,0 +1,7 @@
+version: provider/v1
+name: minimal
+description: Smallest manifest the contract accepts
+command: [minimal-provider]
+actions:
+  run:
+    description: Run

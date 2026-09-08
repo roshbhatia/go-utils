@@ -1,0 +1,7 @@
+version: provider/v1
+name: Example
+description: Names are lowercase and start with a letter
+command: [example]
+actions:
+  run:
+    description: Run

@@ -1,0 +1,9 @@
+version: provider/v1
+name: duration
+description: Duration vector
+command: [example]
+defaults:
+  timeout: ".5s"
+actions:
+  run:
+    description: Run
