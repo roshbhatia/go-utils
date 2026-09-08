@@ -4,10 +4,19 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     systems.url = "github:nix-systems/default";
+    provider-spec = {
+      url = "github:roshbhatia/provider-spec/v1.0.0";
+      flake = false;
+    };
   };
 
   outputs =
-    { nixpkgs, systems, ... }:
+    {
+      nixpkgs,
+      systems,
+      provider-spec,
+      ...
+    }:
     let
       supportedSystems = builtins.filter (system: system != "x86_64-darwin") (import systems);
       eachSystem = nixpkgs.lib.genAttrs supportedSystems;
@@ -63,10 +72,9 @@
             pname = "go-utils-test";
             version = "0";
             src = ./.;
-            vendorHash = "sha256-5w+8gjVQ6duD6B6O8TqjOmeVPDrXJBiieMIxIfR62YU=";
+            vendorHash = "sha256-XoDgIPJ0E/DVLeHQ13LmYxhvLM5ipaSF0KTK3GQqxxg=";
             nativeCheckInputs = [
               pkgs.bashInteractive
-              pkgs.cue
               pkgs.fish
               pkgs.nushell
               pkgs.zsh
@@ -79,13 +87,27 @@
               go test -race ./...
               go run ./internal/cmd/animation-schema --check
               go run ./internal/cmd/provider-schema --check
-              cue vet schema/provider.cue
               runHook postCheck
             '';
             installPhase = ''
               touch "$out"
             '';
           };
+
+          # provider/spec is a copy of the pinned provider-spec release. A
+          # bumped input without a refreshed copy fails here.
+          spec =
+            pkgs.runCommandLocal "go-utils-spec-check"
+              {
+                src = ./provider/spec;
+                nativeBuildInputs = [ pkgs.diffutils ];
+              }
+              ''
+                diff "${provider-spec}/VERSION" "$src/VERSION"
+                diff "${provider-spec}/schema/provider.schema.json" "$src/provider.schema.json"
+                diff -r "${provider-spec}/fixtures/manifest" "$src/fixtures/manifest"
+                touch "$out"
+              '';
         }
       );
 
@@ -102,7 +124,6 @@
               pkgs.gotools
               pkgs.go-tools
               pkgs.bashInteractive
-              pkgs.cue
               pkgs.fish
               pkgs.nushell
               pkgs.ripgrep
