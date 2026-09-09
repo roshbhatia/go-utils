@@ -4,7 +4,7 @@ Shared Go primitives for Roshan's terminal tools.
 
 - `agents`: reads the generated harness registry.
 - `animation`: validates and plays renderer-neutral terminal animations.
-- `cell`: measures, truncates, and fits ANSI-styled terminal cells.
+- `cell`: measures, truncates, fits, and tabulates ANSI-styled terminal cells.
   `Truncate`, `Fit`, `RightFit`, and `ClipWord` accept an optional tail such as
   `"..."`; omitted tails use the Unicode ellipsis.
 - `completion`: generates contextual Bash, Zsh, Fish, and Nushell completions,
@@ -30,7 +30,8 @@ Shared Go primitives for Roshan's terminal tools.
   `Store` adds a lock directory, a validator, and fsync for durable state;
   `Write` and `Symlink` serve cheap hook-side state. `Clean`, `OneLine`, and
   `HasControlBytes` scrub control runes before they reach a store.
-- `ui`: defines terminal colors, keys, layout, status, and themes.
+- `ui`: defines terminal colors, keys, layout, status, and themes, and writes
+  git-shaped `kind: message` diagnostics to a chosen stream.
 - `terminal`: detects TTY capabilities and filters terminal control replies.
 - `workspace`: finds the active workspace and its repositories.
 - `xdg`: resolves strict absolute XDG base directories.
