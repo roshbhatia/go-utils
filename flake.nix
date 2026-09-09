@@ -50,7 +50,7 @@
         {
           default = pkgs.stdenvNoCC.mkDerivation {
             pname = "go-utils";
-            version = "0.12.1";
+            version = "0.13.0";
             src = ./.;
             installPhase = ''
               runHook preInstall
