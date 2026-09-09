@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -34,9 +35,7 @@ func Load[T any](defaults T, options Options) (T, error) {
 	}
 	data, err := os.ReadFile(path)
 	if err == nil {
-		decoder := yaml.NewDecoder(bytes.NewReader(data))
-		decoder.KnownFields(true)
-		if err := decoder.Decode(&result); err != nil {
+		if err := decode(data, &result); err != nil {
 			return result, fmt.Errorf("decode %s: %w", path, err)
 		}
 	} else if !errors.Is(err, os.ErrNotExist) {
@@ -46,6 +45,21 @@ func Load[T any](defaults T, options Options) (T, error) {
 		return result, err
 	}
 	return result, nil
+}
+
+// decode applies one YAML document to target. An empty, whitespace-only, or
+// comment-only file holds no document and means no overrides, not a broken
+// configuration.
+func decode(data []byte, target any) error {
+	if len(bytes.TrimSpace(data)) == 0 {
+		return nil
+	}
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	decoder.KnownFields(true)
+	if err := decoder.Decode(target); err != nil && !errors.Is(err, io.EOF) {
+		return err
+	}
+	return nil
 }
 
 // Path returns the selected YAML path without reading it.
