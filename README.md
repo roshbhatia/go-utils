@@ -18,7 +18,9 @@ Shared Go primitives for Roshan's terminal tools.
   completion protocol reserves tabs for descriptions.
 - `config`: loads typed YAML, applies environment overrides, and emits JSON Schema.
 - `diffview`: renders multi-repository diffs as symbol and call trees.
-- `git`: runs Git with inherited repository state removed.
+- `git`: runs Git with inherited repository state removed, lists and manages
+  worktrees from `git worktree list --porcelain -z`, and validates branch
+  names with `git check-ref-format --branch`.
 - `keymap`: validates key catalogs and generates hints and help rows.
 - `panes`: resolves pointer hits and directional focus between pane rectangles.
 - `paths`: reads generated XDG path manifests and derives per-repository
