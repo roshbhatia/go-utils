@@ -133,3 +133,24 @@ func TestSchemaDescribesConfig(t *testing.T) {
 		}
 	}
 }
+
+func TestLoadTreatsEmptyDocumentAsNoOverrides(t *testing.T) {
+	for name, body := range map[string]string{
+		"empty":      "",
+		"whitespace": "  \n\t\n",
+		"comment":    "# nothing yet\n",
+	} {
+		path := filepath.Join(t.TempDir(), "config.yaml")
+		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		got, err := Load(testConfig{Color: "auto", Enabled: true}, Options{Name: "test", Path: path})
+		if err != nil {
+			t.Errorf("%s: %v", name, err)
+			continue
+		}
+		if got.Color != "auto" || !got.Enabled {
+			t.Errorf("%s: defaults lost: %+v", name, got)
+		}
+	}
+}

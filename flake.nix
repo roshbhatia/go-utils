@@ -50,7 +50,7 @@
         {
           default = pkgs.stdenvNoCC.mkDerivation {
             pname = "go-utils";
-            version = "0.12.1";
+            version = "0.13.0";
             src = ./.;
             installPhase = ''
               runHook preInstall
@@ -76,6 +76,7 @@
             nativeCheckInputs = [
               pkgs.bashInteractive
               pkgs.fish
+              pkgs.git
               pkgs.nushell
               pkgs.zsh
             ];
@@ -125,6 +126,7 @@
               pkgs.go-tools
               pkgs.bashInteractive
               pkgs.fish
+              pkgs.git
               pkgs.nushell
               pkgs.ripgrep
               pkgs.zsh

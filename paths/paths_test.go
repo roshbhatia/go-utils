@@ -45,3 +45,21 @@ func TestGetEReturnsCleanAbsoluteValue(t *testing.T) {
 		t.Fatalf("GetE() = %q, %t, %v", got, ok, err)
 	}
 }
+
+func TestExpandHome(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	for input, want := range map[string]string{
+		"~":           home,
+		"~/":          home,
+		"~/a/b":       filepath.Join(home, "a", "b"),
+		"~user/a":     "~user/a",
+		"/abs/~/keep": "/abs/~/keep",
+		"relative":    "relative",
+		"":            "",
+	} {
+		if got := ExpandHome(input); got != want {
+			t.Errorf("ExpandHome(%q) = %q, want %q", input, got, want)
+		}
+	}
+}

@@ -56,18 +56,41 @@ func command(dir string, args ...string) *exec.Cmd {
 // Output runs git in dir and returns its trimmed stdout. The error carries
 // stderr, which is the only place git explains itself.
 func Output(dir string, args ...string) (string, error) {
+	stdout, stderr, err := output(dir, args...)
+	if err != nil {
+		return "", failure(dir, args, stderr, err)
+	}
+	return stdout, nil
+}
+
+func failure(dir string, args []string, stderr string, err error) error {
+	verb := ""
+	if len(args) > 0 {
+		verb = args[0]
+	}
+	return fmt.Errorf("git %s failed in %s: %s: %w", verb, dir, stderr, err)
+}
+
+// output runs git in dir and returns its trimmed stdout and stderr with the
+// raw process error, for callers that read the exit status or stderr itself.
+func output(dir string, args ...string) (string, string, error) {
 	cmd := command(dir, args...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		verb := ""
-		if len(args) > 0 {
-			verb = args[0]
-		}
-		return "", fmt.Errorf("git %s failed in %s: %s: %w", verb, dir, strings.TrimSpace(stderr.String()), err)
+	err := cmd.Run()
+	return strings.TrimSpace(stdout.String()), strings.TrimSpace(stderr.String()), err
+}
+
+// ExitStatus returns the exit status of the git process behind err, or -1
+// when err did not come from a git exit. git reports its own failures with
+// 128; a usage error is 129.
+func ExitStatus(err error) int {
+	var exit *exec.ExitError
+	if errors.As(err, &exit) {
+		return exit.ExitCode()
 	}
-	return strings.TrimSpace(stdout.String()), nil
+	return -1
 }
 
 func Run(dir string, args ...string) error {
