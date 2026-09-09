@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/roshbhatia/go-utils/xdg"
 )
@@ -174,4 +175,21 @@ func OtelTelemetry() string {
 		return value
 	}
 	return filepath.Join(fallbackStateHome(), "sysinit", "otel", "telemetry.jsonl")
+}
+
+// ExpandHome replaces a leading "~" or "~/" with the user's home directory.
+// Any other value, including "~user", returns unchanged, as does every value
+// when the home directory is unknown.
+func ExpandHome(p string) string {
+	if p != "~" && !strings.HasPrefix(p, "~/") {
+		return p
+	}
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return p
+	}
+	if p == "~" {
+		return home
+	}
+	return filepath.Join(home, p[2:])
 }
