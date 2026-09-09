@@ -1,7 +1,6 @@
 package git
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -39,7 +38,7 @@ func sibling(repo, name string) string { return filepath.Join(filepath.Dir(repo)
 func TestCommonDirIsAbsoluteEverywhere(t *testing.T) {
 	repo := newRepo(t)
 	want := filepath.Join(repo, ".git")
-	if err := WorktreeAdd(repo, sibling(repo, "linked"), WorktreeAddOptions{Branch: "feat"}); err != nil {
+	if _, err := WorktreeAdd(repo, sibling(repo, "linked"), WorktreeAddOptions{Branch: "feat"}); err != nil {
 		t.Fatal(err)
 	}
 	sub := filepath.Join(repo, "sub")
@@ -57,7 +56,7 @@ func TestCommonDirIsAbsoluteEverywhere(t *testing.T) {
 func TestMainWorktreeMatchesFirstListedTree(t *testing.T) {
 	repo := newRepo(t)
 	linked := sibling(repo, "linked")
-	if err := WorktreeAdd(repo, linked, WorktreeAddOptions{Branch: "feat"}); err != nil {
+	if _, err := WorktreeAdd(repo, linked, WorktreeAddOptions{Branch: "feat"}); err != nil {
 		t.Fatal(err)
 	}
 	listed, err := Output(linked, "worktree", "list", "--porcelain")
@@ -95,7 +94,7 @@ func TestWorktreesParsesEveryPorcelainAttribute(t *testing.T) {
 		{sibling(repo, "locked"), WorktreeAddOptions{Branch: "locked"}},
 		{sibling(repo, "gone"), WorktreeAddOptions{Branch: "gone"}},
 	} {
-		if err := WorktreeAdd(repo, step.path, step.o); err != nil {
+		if _, err := WorktreeAdd(repo, step.path, step.o); err != nil {
 			t.Fatalf("WorktreeAdd(%s): %v", step.path, err)
 		}
 	}
@@ -164,24 +163,25 @@ func TestWorktreeAddReuseAndStart(t *testing.T) {
 	if err := Run(repo, "branch", "existing"); err != nil {
 		t.Fatal(err)
 	}
-	err := WorktreeAdd(repo, sibling(repo, "fresh"), WorktreeAddOptions{Branch: "existing"})
-	if err == nil || errors.Is(err, ErrBranchReused) {
-		t.Fatalf("-b on an existing branch: %v", err)
+	reused, err := WorktreeAdd(repo, sibling(repo, "fresh"), WorktreeAddOptions{Branch: "existing"})
+	if err == nil || reused {
+		t.Fatalf("-b on an existing branch = %t, %v", reused, err)
 	}
-	err = WorktreeAdd(repo, sibling(repo, "reused"), WorktreeAddOptions{Branch: "existing", Reuse: true})
-	if !errors.Is(err, ErrBranchReused) {
-		t.Fatalf("reuse of an existing branch: %v", err)
+	reused, err = WorktreeAdd(repo, sibling(repo, "reused"), WorktreeAddOptions{Branch: "existing", Reuse: true})
+	if err != nil || !reused {
+		t.Fatalf("reuse of an existing branch = %t, %v", reused, err)
 	}
 	if branch, err := Branch(sibling(repo, "reused")); err != nil || branch != "existing" {
 		t.Fatalf("reused branch = %q, %v", branch, err)
 	}
-	if err := WorktreeAdd(repo, sibling(repo, "new"), WorktreeAddOptions{Branch: "new", Reuse: true, Start: "main"}); err != nil {
-		t.Fatalf("reuse of a missing branch: %v", err)
+	reused, err = WorktreeAdd(repo, sibling(repo, "new"), WorktreeAddOptions{Branch: "new", Reuse: true, Start: "main"})
+	if err != nil || reused {
+		t.Fatalf("reuse of a missing branch = %t, %v", reused, err)
 	}
 	if branch, err := Branch(sibling(repo, "new")); err != nil || branch != "new" {
 		t.Fatalf("new branch = %q, %v", branch, err)
 	}
-	if err := WorktreeAdd(repo, sibling(repo, "named"), WorktreeAddOptions{}); err != nil {
+	if _, err := WorktreeAdd(repo, sibling(repo, "named"), WorktreeAddOptions{}); err != nil {
 		t.Fatal(err)
 	}
 	if branch, err := Branch(sibling(repo, "named")); err != nil || branch != "named" {
@@ -192,7 +192,7 @@ func TestWorktreeAddReuseAndStart(t *testing.T) {
 func TestWorktreeRemovePruneRepair(t *testing.T) {
 	repo := newRepo(t)
 	dirty := sibling(repo, "dirty")
-	if err := WorktreeAdd(repo, dirty, WorktreeAddOptions{Branch: "dirty"}); err != nil {
+	if _, err := WorktreeAdd(repo, dirty, WorktreeAddOptions{Branch: "dirty"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(dirty, "note"), []byte("x"), 0o600); err != nil {
@@ -212,7 +212,7 @@ func TestWorktreeRemovePruneRepair(t *testing.T) {
 	}
 
 	gone := sibling(repo, "gone")
-	if err := WorktreeAdd(repo, gone, WorktreeAddOptions{Branch: "gone"}); err != nil {
+	if _, err := WorktreeAdd(repo, gone, WorktreeAddOptions{Branch: "gone"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.RemoveAll(gone); err != nil {
@@ -227,7 +227,7 @@ func TestWorktreeRemovePruneRepair(t *testing.T) {
 	}
 
 	moved, target := sibling(repo, "moved"), sibling(repo, "elsewhere")
-	if err := WorktreeAdd(repo, moved, WorktreeAddOptions{Branch: "moved"}); err != nil {
+	if _, err := WorktreeAdd(repo, moved, WorktreeAddOptions{Branch: "moved"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.Rename(moved, target); err != nil {

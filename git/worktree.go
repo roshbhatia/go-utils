@@ -1,7 +1,6 @@
 package git
 
 import (
-	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -20,11 +19,6 @@ type Worktree struct {
 	Prunable    bool
 }
 
-// ErrBranchReused reports that WorktreeAdd checked out a branch that already
-// existed instead of creating one. The worktree exists; a caller that wanted
-// a fresh branch can warn.
-var ErrBranchReused = errors.New("branch already exists and was checked out")
-
 // WorktreeAddOptions shapes one `git worktree add` call.
 type WorktreeAddOptions struct {
 	// Branch names the branch to create with -b, or to check out when Reuse
@@ -34,7 +28,7 @@ type WorktreeAddOptions struct {
 	// Start is the commit the new worktree starts from. Empty means HEAD.
 	Start string
 	// Reuse checks out an existing Branch instead of failing on -b. When it
-	// applies, WorktreeAdd returns ErrBranchReused after a successful add.
+	// applies, WorktreeAdd reports reused as true.
 	Reuse bool
 	// Detach checks out the start point without a branch.
 	Detach bool
@@ -132,15 +126,14 @@ func parseWorktrees(porcelain string) []Worktree {
 
 // WorktreeAdd creates a worktree at path for the repository at repo. It
 // mirrors the command line: without a Branch, git names one after path; with
-// Reuse, an existing Branch is checked out and ErrBranchReused is returned
-// after the add succeeds. It never passes --no-guess-remote, so the user's
-// worktree.guessRemote setting applies.
-func WorktreeAdd(repo, path string, o WorktreeAddOptions) error {
+// Reuse, an existing Branch is checked out instead of created and reused is
+// true so a caller that wanted a fresh branch can warn. It never passes
+// --no-guess-remote, so the user's worktree.guessRemote setting applies.
+func WorktreeAdd(repo, path string, o WorktreeAddOptions) (reused bool, err error) {
 	args := []string{"worktree", "add"}
 	if o.Detach {
 		args = append(args, "--detach")
 	}
-	reused := false
 	if o.Branch != "" && o.Reuse && Succeeds(repo, "rev-parse", "--verify", "--quiet", "refs/heads/"+o.Branch) {
 		reused = true
 		args = append(args, path, o.Branch)
@@ -154,12 +147,9 @@ func WorktreeAdd(repo, path string, o WorktreeAddOptions) error {
 		}
 	}
 	if err := Run(repo, args...); err != nil {
-		return err
+		return false, err
 	}
-	if reused {
-		return ErrBranchReused
-	}
-	return nil
+	return reused, nil
 }
 
 // WorktreeRemove removes the worktree at path. force passes that many
