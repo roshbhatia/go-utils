@@ -76,6 +76,7 @@
             nativeCheckInputs = [
               pkgs.bashInteractive
               pkgs.fish
+              pkgs.git
               pkgs.nushell
               pkgs.zsh
             ];
@@ -125,6 +126,7 @@
               pkgs.go-tools
               pkgs.bashInteractive
               pkgs.fish
+              pkgs.git
               pkgs.nushell
               pkgs.ripgrep
               pkgs.zsh
